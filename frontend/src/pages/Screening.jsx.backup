@@ -1,0 +1,931 @@
+import React, { useState } from 'react';
+import api from '../utils/api';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+const Screening = () => {
+  const [jobs, setJobs] = useState([]);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [jobDescription, setJobDescription] = useState('');
+  const [topK, setTopK] = useState(5);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [results, setResults] = useState([]);
+  const [selectedModel, setSelectedModel] = useState('qwen-plus'); // 默认 Qwen
+  const [currentProgress, setCurrentProgress] = useState(null); // 当前进度
+  const [expandedItems, setExpandedItems] = useState({}); // 展开的项
+  const [showHistory, setShowHistory] = useState(false); // 是否显示历史记录
+  const [historyResults, setHistoryResults] = useState([]); // 历史记录
+
+  const [useJobId, setUseJobId] = useState(true); // true: 使用岗位ID, false: 使用文本描述
+
+  const models = [
+    { value: 'qwen-plus', label: '通义千问 Qwen Plus' },
+    { value: 'deepseek-chat', label: 'DeepSeek Chat' }
+  ];
+
+  // 获取岗位列表
+  const fetchJobs = async () => {
+    console.log('开始获取岗位列表');
+    try {
+      const response = await api.get('/api/jobs/list');
+      console.log('岗位列表响应:', response.data);
+      if (response.data.success) {
+        console.log('获取到岗位数量:', response.data.jobs.length);
+        setJobs(response.data.jobs);
+      }
+    } catch (err) {
+      console.error('获取岗位列表失败:', err);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchJobs();
+  }, []);
+
+  // 获取筛选历史
+  const fetchHistory = async (jobId) => {
+    console.log('开始获取历史记录, jobId:', jobId);
+    try {
+      const response = await api.get(`/api/screening/history/${jobId}`);
+      console.log('历史记录响应:', response.data);
+      if (response.data.success) {
+        console.log('获取到历史记录数量:', response.data.results.length);
+        setHistoryResults(response.data.results);
+        // 只在有历史记录且当前没有新结果时,自动切换到历史视图
+        if (response.data.results.length > 0 && results.length === 0) {
+          console.log('自动切换到历史视图');
+          setShowHistory(true);
+        }
+      }
+    } catch (err) {
+      console.error('获取历史记录失败:', err);
+    }
+  };
+
+  // 当选择岗位时,尝试加载历史记录
+  React.useEffect(() => {
+    console.log('selectedJob 或 useJobId 变化:', { selectedJob, useJobId });
+    if (selectedJob && useJobId) {
+      console.log('调用 fetchHistory, jobId:', selectedJob.job_id);
+      fetchHistory(selectedJob.job_id);
+    }
+  }, [selectedJob, useJobId]);
+
+  const handleScreen = async () => {
+    setError('');
+    setResults([]);
+    setCurrentProgress(null);
+    setShowHistory(false); // 切换到新结果视图
+    setLoading(true);
+
+    try {
+      if (useJobId) {
+        if (!selectedJob) {
+          setError('请选择岗位');
+          setLoading(false);
+          return;
+        }
+        // 使用岗位 ID 筛选 - SSE 流式接收
+        await streamScreeningResults(selectedJob.job_id);
+      } else {
+        if (!jobDescription.trim()) {
+          setError('请输入职位描述');
+          setLoading(false);
+          return;
+        }
+        // 使用职位描述文本筛选 - 暂时还是普通请求
+        const response = await api.post(
+          '/api/screening/screen',
+          {
+            job_description: jobDescription,
+            top_k: topK,
+            model: selectedModel
+          }
+        );
+        setResults(response.data.results || []);
+        if (!response.data.results || response.data.results.length === 0) {
+          setError('未找到匹配的简历');
+        }
+      }
+    } catch (err) {
+      setError(err.response?.data?.detail || '筛选失败');
+      setLoading(false);
+    }
+  };
+
+  const streamScreeningResults = async (jobId) => {
+    const token = localStorage.getItem('token');
+    const url = `http://localhost:8000/api/screening/screen_by_job/${jobId}?top_k=${topK}&model=${selectedModel}`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('筛选请求失败');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              if (data.type === 'error') {
+                setError(data.message);
+                setLoading(false);
+                setCurrentProgress(null);
+                return;
+              }
+
+              if (data.type === 'done') {
+                setLoading(false);
+                setCurrentProgress(null);
+                if (data.count === 0) {
+                  setError('未找到匹配的简历');
+                }
+                return;
+              }
+
+              if (data.type === 'result') {
+                // 更新进度
+                setCurrentProgress({
+                  current: data.index,
+                  total: data.total,
+                  filename: data.filename
+                });
+
+                // 立即显示新结果
+                setResults(prev => [...prev, data]);
+              }
+            } catch (e) {
+              console.error('解析 SSE 数据失败:', e);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      setError(err.message || '筛选失败');
+      setLoading(false);
+      setCurrentProgress(null);
+    }
+  };
+
+  const formatDate = (timestamp) => {
+    if (!timestamp) return '-';
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleString('zh-CN');
+  };
+
+  const formatSize = (bytes) => {
+    if (!bytes) return '-';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  };
+
+  const truncateText = (text, maxLength = 300) => {
+    if (text && text.length > maxLength) {
+      return text.substring(0, maxLength) + '...';
+    }
+    return text || '';
+  };
+
+  const toggleExpand = (resumeId) => {
+    setExpandedItems(prev => ({
+      ...prev,
+      [resumeId]: !prev[resumeId]
+    }));
+  };
+
+  return (
+    <div style={styles.container}>
+      <div style={styles.header}>
+        <h2 style={styles.title}>简历筛选</h2>
+      </div>
+
+      <div style={styles.content}>
+        <div style={styles.leftPanel}>
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <h3 style={styles.cardTitle}>筛选配置</h3>
+            </div>
+
+            <div style={styles.cardBody}>
+              {/* 选择筛选方式 */}
+              <div style={styles.formGroup}>
+                <label style={styles.label}>筛选方式</label>
+                <div style={styles.toggleContainer}>
+                  <button
+                    style={{
+                      ...styles.toggleButton,
+                      backgroundColor: useJobId ? '#667eea' : '#f5f5f5',
+                      color: useJobId ? 'white' : '#333'
+                    }}
+                    onClick={() => setUseJobId(true)}
+                  >
+                    选择岗位
+                  </button>
+                  <button
+                    style={{
+                      ...styles.toggleButton,
+                      backgroundColor: !useJobId ? '#667eea' : '#f5f5f5',
+                      color: !useJobId ? 'white' : '#333'
+                    }}
+                    onClick={() => setUseJobId(false)}
+                  >
+                    自定义描述
+                  </button>
+                </div>
+              </div>
+
+              {/* 选择岗位 */}
+              {useJobId && (
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>选择岗位</label>
+                  <select
+                    style={styles.select}
+                    value={selectedJob?.job_id || ''}
+                    onChange={(e) => {
+                      console.log('选择岗位, value:', e.target.value);
+                      const job = jobs.find(j => j.job_id === e.target.value);
+                      console.log('找到的岗位:', job);
+                      setSelectedJob(job);
+                    }}
+                  >
+                    <option value="">请选择岗位</option>
+                    {jobs.map((job) => (
+                      <option key={job.job_id} value={job.job_id}>
+                        {job.title} {job.location ? `(${job.location})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* 自定义职位描述 */}
+              {!useJobId && (
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>职位描述</label>
+                  <textarea
+                    style={styles.textarea}
+                    placeholder="请输入详细的职位描述，包括岗位要求、技能要求等..."
+                    value={jobDescription}
+                    onChange={(e) => setJobDescription(e.target.value)}
+                    rows={10}
+                  />
+                </div>
+              )}
+
+              {/* 返回数量 */}
+              <div style={styles.formGroup}>
+                <label style={styles.label}>返回数量 (Top K)</label>
+                <input
+                  type="number"
+                  style={styles.input}
+                  value={topK}
+                  onChange={(e) => setTopK(parseInt(e.target.value) || 5)}
+                  min={1}
+                  max={20}
+                />
+              </div>
+
+              {/* LLM 模型选择 */}
+              <div style={styles.formGroup}>
+                <label style={styles.label}>评估模型</label>
+                <select
+                  style={styles.select}
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                >
+                  {models.map((model) => (
+                    <option key={model.value} value={model.value}>
+                      {model.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {error && <div style={styles.error}>{error}</div>}
+
+              <button
+                style={styles.screenButton}
+                onClick={handleScreen}
+                disabled={loading}
+              >
+                {loading ? '筛选中...' : '开始筛选'}
+              </button>
+
+              {/* 筛选进度 */}
+              {currentProgress && (
+                <div style={styles.progressContainer}>
+                  <div style={styles.progressText}>
+                    正在评估: <strong>{currentProgress.filename}</strong>
+                    ({currentProgress.current}/{currentProgress.total})
+                  </div>
+                  <div style={styles.progressBar}>
+                    <div
+                      style={{
+                        ...styles.progressFill,
+                        width: `${(currentProgress.current / currentProgress.total) * 100}%`
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 岗位信息预览 */}
+          {useJobId && selectedJob && (
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <h3 style={styles.cardTitle}>岗位信息</h3>
+              </div>
+              <div style={styles.cardBody}>
+                <div style={styles.jobInfo}>
+                  <div style={styles.jobTitle}>{selectedJob.title}</div>
+                  <div style={styles.jobMeta}>
+                    {selectedJob.location && (
+                      <span style={styles.metaItem}>📍 {selectedJob.location}</span>
+                    )}
+                    {selectedJob.salary_range && (
+                      <span style={styles.metaItem}>💰 {selectedJob.salary_range}</span>
+                    )}
+                  </div>
+                  <div style={styles.jobSection}>
+                    <h4 style={styles.sectionTitle}>岗位描述</h4>
+                    <p style={styles.sectionText}>{selectedJob.description}</p>
+                  </div>
+                  {selectedJob.requirements && (
+                    <div style={styles.jobSection}>
+                      <h4 style={styles.sectionTitle}>岗位要求</h4>
+                      <p style={styles.sectionText}>{selectedJob.requirements}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div style={styles.rightPanel}>
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <h3 style={styles.cardTitle}>
+                筛选结果 {results.length > 0 && `(${results.length})`}
+              </h3>
+            </div>
+            <div style={styles.cardBody}>
+              {/* 历史记录/新结果切换 - 只在有历史记录或新结果时显示 */}
+              {(historyResults.length > 0 || results.length > 0) && !loading && (
+                <div style={styles.historyToggle}>
+                  <button
+                    style={{
+                      ...styles.toggleButton,
+                      backgroundColor: !showHistory ? '#667eea' : '#f5f5f5',
+                      color: !showHistory ? 'white' : '#333',
+                    }}
+                    onClick={() => setShowHistory(false)}
+                    disabled={results.length === 0}
+                  >
+                    新筛选结果 ({results.length})
+                  </button>
+                  <button
+                    style={{
+                      ...styles.toggleButton,
+                      backgroundColor: showHistory ? '#667eea' : '#f5f5f5',
+                      color: showHistory ? 'white' : '#333',
+                    }}
+                    onClick={() => setShowHistory(true)}
+                    disabled={historyResults.length === 0}
+                  >
+                    历史记录 ({historyResults.length})
+                  </button>
+                </div>
+              )
+
+              {loading ? (
+                <div style={styles.loading}>筛选中...</div>
+              ) : showHistory ? (
+                /* 显示历史记录 */
+                historyResults.length === 0 ? (
+                  <div style={styles.empty}>
+                    <div style={styles.emptyIcon}>📋</div>
+                    <p style={styles.emptyText}>暂无历史记录</p>
+                  </div>
+                ) : (
+                  <div style={styles.resultsList}>
+                    {historyResults.map((result, index) => {
+                      const isExpanded = expandedItems[result.result_id] || false;
+                      return (
+                        <div key={result.result_id} style={styles.resultItem}>
+                          <div
+                            style={{
+                              ...styles.resultHeader,
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => setExpandedItems(prev => ({
+                              ...prev,
+                              [result.result_id]: !prev[result.result_id]
+                            }))}
+                          >
+                            <div style={styles.resultRank}>
+                              <span style={styles.rankNumber}>#{result.rank}</span>
+                            </div>
+                            <div style={styles.resultInfo}>
+                              <div style={styles.resultTitle}>
+                                {result.filename || '未知文件名'}
+                                <span style={{
+                                  marginLeft: '8px',
+                                  fontSize: '12px',
+                                  color: '#666',
+                                }}>
+                                  {isExpanded ? '▼' : '▶'}
+                                </span>
+                              </div>
+                              <div style={styles.resultMeta}>
+                                <span style={styles.metaItem}>
+                                  🎯 匹配度: {(result.rerank_score * 100).toFixed(1)}%
+                                </span>
+                                <span style={styles.metaSeparator}>•</span>
+                                <span style={styles.metaItem}>
+                                  📅 {formatDate(result.created_at)}
+                                </span>
+                                <span style={styles.metaSeparator}>•</span>
+                                <span style={styles.metaItem}>
+                                  📦 {formatSize(result.file_size)}
+                                </span>
+                                <span style={styles.metaSeparator}>•</span>
+                                <span style={styles.metaItem}>
+                                  🔍 {formatDate(result.screening_created_at)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          {isExpanded && (
+                            <div style={styles.evaluationSection}>
+                              <h4 style={styles.evaluationTitle}>AI 评估</h4>
+                              <div style={styles.evaluationContent}>
+                                <ReactMarkdown
+                                  remarkPlugins={[remarkGfm]}
+                                  components={{
+                                    table: ({ children }) => (
+                                      <div style={{ overflowX: 'auto' }}>
+                                        <table style={{
+                                          borderCollapse: 'collapse',
+                                          width: '100%',
+                                          border: '1px solid #d0d7de',
+                                        }}>
+                                          {children}
+                                        </table>
+                                      </div>
+                                    ),
+                                    th: ({ children }) => (
+                                    <th style={{
+                                      border: '1px solid #d0d7de',
+                                      padding: '8px 12px',
+                                      backgroundColor: '#f5f7fa',
+                                      fontWeight: 'bold',
+                                      textAlign: 'left',
+                                    }}>
+                                      {children}
+                                    </th>
+                                  ),
+                                  td: ({ children }) => (
+                                    <td style={{
+                                      border: '1px solid #d0d7de',
+                                      padding: '8px 12px',
+                                    }}>
+                                      {children}
+                                    </td>
+                                  ),
+                                }}
+                              >
+                                {result.llm_evaluation}
+                              </ReactMarkdown>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* 显示新筛选结果 */
+                results.length === 0 ? (
+                  <div style={styles.empty}>
+                    <div style={styles.emptyIcon}>🔍</div>
+                    <p style={styles.emptyText}>
+                      {error ? '未找到匹配的简历' : '选择岗位或输入描述后开始筛选'}
+                    </p>
+                  </div>
+                ) : (
+                  <div style={styles.resultsList}>
+                    {results.map((result, index) => {
+                      const isExpanded = expandedItems[result.resume_id] || false;
+                      return (
+                        <div key={result.resume_id} style={styles.resultItem}>
+                          <div
+                            style={{
+                              ...styles.resultHeader,
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => toggleExpand(result.resume_id)}
+                          >
+                            <div style={styles.resultRank}>
+                              <span style={styles.rankNumber}>#{index + 1}</span>
+                            </div>
+                            <div style={styles.resultInfo}>
+                              <div style={styles.resultTitle}>
+                                {result.filename || '未知文件名'}
+                                <span style={{
+                                  marginLeft: '8px',
+                                  fontSize: '12px',
+                                  color: '#666',
+                                }}>
+                                  {isExpanded ? '▼' : '▶'}
+                                </span>
+                              </div>
+                              <div style={styles.resultMeta}>
+                                <span style={styles.metaItem}>
+                                  🎯 匹配度: {(result.rerank_score * 100).toFixed(1)}%
+                                </span>
+                                <span style={styles.metaSeparator}>•</span>
+                                <span style={styles.metaItem}>
+                                  📅 {formatDate(result.created_at)}
+                                </span>
+                                <span style={styles.metaSeparator}>•</span>
+                                <span style={styles.metaItem}>
+                                  📦 {formatSize(result.file_size)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          {isExpanded && (
+                            <div style={styles.evaluationSection}>
+                              <h4 style={styles.evaluationTitle}>AI 评估</h4>
+                              <div style={styles.evaluationContent}>
+                                <ReactMarkdown
+                                  remarkPlugins={[remarkGfm]}
+                                  components={{
+                                    table: ({ children }) => (
+                                      <div style={{ overflowX: 'auto' }}>
+                                        <table style={{
+                                          borderCollapse: 'collapse',
+                                          width: '100%',
+                                          border: '1px solid #d0d7de',
+                                        }}>
+                                          {children}
+                                        </table>
+                                      </div>
+                                    ),
+                                    th: ({ children }) => (
+                                      <th style={{
+                                        border: '1px solid #d0d7de',
+                                        padding: '8px 12px',
+                                        backgroundColor: '#f5f7fa',
+                                        fontWeight: 'bold',
+                                        textAlign: 'left',
+                                      }}>
+                                        {children}
+                                      </th>
+                                    ),
+                                    td: ({ children }) => (
+                                      <td style={{
+                                        border: '1px solid #d0d7de',
+                                        padding: '8px 12px',
+                                      }}>
+                                      {children}
+                                    </td>
+                                  ),
+                                }}
+                              >
+                                {result.llm_evaluation}
+                              </ReactMarkdown>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const styles = {
+  container: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px',
+  },
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: '24px',
+    fontWeight: 'bold',
+    color: '#333',
+    margin: 0,
+  },
+  content: {
+    display: 'grid',
+    gridTemplateColumns: '400px 1fr',
+    gap: '24px',
+    minHeight: '600px',
+  },
+  leftPanel: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px',
+  },
+  rightPanel: {
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  card: {
+    backgroundColor: 'white',
+    borderRadius: '12px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+    overflow: 'hidden',
+  },
+  cardHeader: {
+    padding: '20px 24px',
+    borderBottom: '1px solid #e0e0e0',
+  },
+  cardTitle: {
+    fontSize: '18px',
+    fontWeight: 'bold',
+    color: '#333',
+    margin: 0,
+  },
+  cardBody: {
+    padding: '24px',
+  },
+  formGroup: {
+    marginBottom: '20px',
+  },
+  label: {
+    display: 'block',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    color: '#555',
+    marginBottom: '8px',
+  },
+  toggleContainer: {
+    display: 'flex',
+    gap: '8px',
+  },
+  toggleButton: {
+    flex: 1,
+    padding: '10px 16px',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '500',
+    transition: 'all 0.2s',
+  },
+  select: {
+    width: '100%',
+    padding: '10px 12px',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    fontSize: '14px',
+    backgroundColor: 'white',
+    color: '#333',
+    cursor: 'pointer',
+    appearance: 'auto',
+  },
+  input: {
+    width: '100%',
+    padding: '10px',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    fontSize: '14px',
+  },
+  textarea: {
+    width: '100%',
+    padding: '10px',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    fontSize: '14px',
+    fontFamily: 'inherit',
+    resize: 'vertical',
+  },
+  error: {
+    padding: '10px 14px',
+    backgroundColor: '#fee',
+    color: '#e74c3c',
+    borderRadius: '6px',
+    fontSize: '13px',
+    marginBottom: '16px',
+  },
+  screenButton: {
+    width: '100%',
+    padding: '12px',
+    backgroundColor: '#667eea',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    transition: 'backgroundColor 0.2s',
+  },
+  jobInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+  },
+  jobTitle: {
+    fontSize: '18px',
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  jobMeta: {
+    display: 'flex',
+    gap: '16px',
+    fontSize: '13px',
+    color: '#999',
+  },
+  metaItem: {
+    fontSize: '13px',
+  },
+  metaSeparator: {
+    color: '#ddd',
+  },
+  jobSection: {
+    marginTop: '8px',
+  },
+  sectionTitle: {
+    fontSize: '14px',
+    fontWeight: 'bold',
+    color: '#555',
+    margin: '0 0 8px 0',
+  },
+  sectionText: {
+    fontSize: '13px',
+    color: '#666',
+    lineHeight: '1.6',
+    margin: 0,
+    whiteSpace: 'pre-wrap',
+  },
+  loading: {
+    textAlign: 'center',
+    padding: '48px',
+    color: '#999',
+    fontSize: '16px',
+  },
+  empty: {
+    textAlign: 'center',
+    padding: '64px 32px',
+  },
+  emptyIcon: {
+    fontSize: '64px',
+    marginBottom: '16px',
+  },
+  emptyText: {
+    fontSize: '16px',
+    color: '#999',
+    margin: 0,
+  },
+  resultsList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px',
+  },
+  resultItem: {
+    padding: '20px',
+    border: '1px solid #e0e0e0',
+    borderRadius: '8px',
+    backgroundColor: '#fafafa',
+  },
+  resultHeader: {
+    display: 'flex',
+    gap: '16px',
+    marginBottom: '12px',
+    transition: 'background-color 0.2s',
+    ':hover': {
+      backgroundColor: '#f0f0f0',
+    },
+  },
+  resultRank: {
+    flexShrink: 0,
+  },
+  rankNumber: {
+    display: 'inline-block',
+    width: '36px',
+    height: '36px',
+    lineHeight: '36px',
+    textAlign: 'center',
+    borderRadius: '50%',
+    backgroundColor: '#667eea',
+    color: 'white',
+    fontSize: '14px',
+    fontWeight: 'bold',
+  },
+  resultInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  resultTitle: {
+    fontSize: '16px',
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: '4px',
+    display: 'flex',
+    alignItems: 'center',
+  },
+  resultMeta: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '12px',
+    color: '#999',
+  },
+  evaluationSection: {
+    marginTop: '16px',
+    paddingTop: '16px',
+    borderTop: '1px solid #e0e0e0',
+    animation: 'fadeIn 0.3s ease-in-out',
+  },
+  evaluationTitle: {
+    fontSize: '14px',
+    fontWeight: 'bold',
+    color: '#555',
+    margin: '0 0 8px 0',
+  },
+  evaluationContent: {
+    fontSize: '13px',
+    color: '#666',
+    lineHeight: '1.6',
+    backgroundColor: 'white',
+    padding: '12px',
+    borderRadius: '6px',
+    border: '1px solid #e0e0e0',
+  },
+  progressContainer: {
+    marginTop: '16px',
+  },
+  progressText: {
+    fontSize: '13px',
+    color: '#666',
+    marginBottom: '8px',
+  },
+  progressBar: {
+    width: '100%',
+    height: '8px',
+    backgroundColor: '#e0e0e0',
+    borderRadius: '4px',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#667eea',
+    transition: 'width 0.3s ease',
+  },
+};
+
+// 添加全局动画样式
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;
+if (!document.querySelector('style[data-animations]')) {
+  style.setAttribute('data-animations', 'true');
+  document.head.appendChild(style);
+}
+
+export default Screening;

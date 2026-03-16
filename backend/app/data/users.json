@@ -1,0 +1,11 @@
+{
+  "admin": {
+    "username": "admin",
+    "email": "admin@example.com",
+    "password_hash": "$2b$12$L.X7NFfIO/6zAHjjtGLpPeQh841ZQ4.ic7pud92ekIJW/3HTwaQU.",
+    "full_name": "系统管理员",
+    "role": "admin",
+    "is_active": true,
+    "id": "user_admin"
+  }
+}

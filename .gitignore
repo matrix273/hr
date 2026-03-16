@@ -1,0 +1,73 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# uv
+uv.lock
+.python-version
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Keep examples
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node modules
+node_modules/
+dist/
+*.log
+
+# Database
+*.db
+*.sqlite
+
+# Test coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.pytest_cache/
+*.egg-info/
+logs/
+*.log
+
+# AI Models (large files) - exclude Qwen model files only
+backend/app/models/Qwen/
