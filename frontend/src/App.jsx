@@ -4,6 +4,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import HelpPage from './pages/HelpPage';
 
 function App() {
   const token = localStorage.getItem('token');
@@ -19,6 +20,9 @@ function App() {
       
       {/* 注册页面 */}
       <Route path="/register" element={<Register />} />
+      
+      {/* 帮助页面 */}
+      <Route path="/help" element={<HelpPage />} />
       
       {/* 应用页面（需要认证） */}
       <Route

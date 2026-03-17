@@ -109,6 +109,7 @@ class ScreeningResult(Base):
     model = Column(String(100), nullable=False, comment="使用的LLM模型")
     screening_type = Column(String(20), nullable=False, default="job", comment="筛选方式: job-岗位筛选, custom-自定义描述筛选")
     rerank_score = Column(Float, nullable=False, comment="Rerank得分")
+    raw_score = Column(Float, nullable=False, comment="原始Rerank得分")
     rank = Column(Integer, nullable=False, comment="排名")
     llm_evaluation = Column(Text, nullable=False, comment="LLM评估内容")
     user_id = Column(String(50), nullable=False)

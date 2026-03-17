@@ -52,22 +52,252 @@ const Screening = () => {
   const [previewResume, setPreviewResume] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
 
-  // 批量删除历史记录相关函数
+  // 导出选择状态
+  const [selectedResults, setSelectedResults] = useState([]);
+  const [selectAllResults, setSelectAllResults] = useState(false);
+  const [exportType, setExportType] = useState('pdf');
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+
+  // 合并复选框功能 - 单个复选框同时处理导出和删除
   const handleSelectAllHistory = () => {
     if (selectAllHistory) {
       setSelectedHistory([]);
+      setSelectedResults([]);
     } else {
       setSelectedHistory(historyResults.map(r => r.result_id));
+      setSelectedResults(historyResults.map(r => r.resume_id));
     }
     setSelectAllHistory(!selectAllHistory);
   };
 
-  const handleSelectHistory = (resultId) => {
-    if (selectedHistory.includes(resultId)) {
+  // 合并复选框功能 - 单个复选框同时处理导出和删除
+  const handleSelectResult = (resumeId, resultId = null) => {
+    // 处理新结果（没有resultId）
+    if (resultId === null) {
+      if (selectedResults.includes(resumeId)) {
+        setSelectedResults(selectedResults.filter(id => id !== resumeId));
+      } else {
+        setSelectedResults([...selectedResults, resumeId]);
+      }
+      return;
+    }
+    
+    // 处理历史记录（同时处理导出和删除）
+    if (selectedResults.includes(resumeId)) {
+      setSelectedResults(selectedResults.filter(id => id !== resumeId));
       setSelectedHistory(selectedHistory.filter(id => id !== resultId));
     } else {
+      setSelectedResults([...selectedResults, resumeId]);
       setSelectedHistory([...selectedHistory, resultId]);
     }
+  };
+
+  // 导出结果选择功能
+  const handleSelectAllResults = () => {
+    if (selectAllResults) {
+      setSelectedResults([]);
+      if (showHistory) {
+        setSelectedHistory([]);
+      }
+    } else {
+      const currentResults = showHistory ? filteredHistoryResults : results;
+      setSelectedResults(currentResults.map(r => r.resume_id));
+      if (showHistory) {
+        setSelectedHistory(currentResults.map(r => r.result_id));
+      }
+    }
+    setSelectAllResults(!selectAllResults);
+  };
+
+  // 导出结果功能
+  const handleExportResults = async () => {
+    if (selectedResults.length === 0) {
+      setError('请先选择要导出的结果');
+      return;
+    }
+
+    const currentResults = showHistory ? filteredHistoryResults : results;
+    const selectedData = currentResults.filter(r => selectedResults.includes(r.resume_id));
+
+    try {
+      if (exportType === 'pdf') {
+        await exportToPDF(selectedData);
+      } else {
+        await exportToMarkdown(selectedData);
+      }
+    } catch (error) {
+      setError('导出失败：' + error.message);
+    }
+  };
+
+  // 导出为PDF - 调用后端API
+  const exportToPDF = async (data) => {
+    try {
+      // 从数据中提取result_id列表
+      const resultIds = data.map(item => item.result_id).filter(id => id);
+      
+      // 如果没有result_id（新结果），使用Markdown格式导出
+      if (resultIds.length === 0) {
+        console.log('新结果导出：使用Markdown格式');
+        setError('提示：新筛选结果已导出为Markdown格式（历史记录支持PDF导出）');
+        setTimeout(() => setError(''), 3000);
+        
+        const markdownContent = exportToMarkdownContent(data);
+        const blob = new Blob([markdownContent], { type: 'text/markdown;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = '简历筛选结果.md';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        return;
+      }
+      
+      // 调用后端API导出PDF（历史记录）
+      const response = await api.post('/api/screening/export-pdf', {
+        result_ids: resultIds
+      }, {
+        responseType: 'blob' // 重要：指定响应类型为blob
+      });
+      
+      // 创建下载链接
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // 从响应头获取文件名
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = '简历筛选报告.pdf';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = decodeURIComponent(filenameMatch[1]);
+        }
+      }
+      
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      setError('');
+      
+    } catch (error) {
+      console.error('PDF导出失败:', error);
+      
+      // 如果后端导出失败，降级为Markdown格式
+      if (error.response?.status === 404) {
+        setError('后端PDF服务暂不可用，已切换为Markdown格式');
+      } else {
+        setError(`PDF导出失败: ${error.response?.data?.detail || error.message}，已切换为Markdown格式`);
+      }
+      setTimeout(() => setError(''), 5000);
+      
+      // 降级方案：导出Markdown
+      const markdownContent = exportToMarkdownContent(data);
+      const blob = new Blob([markdownContent], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = '简历筛选结果.md';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  // 将markdown转换为纯文本的辅助函数
+  const convertMarkdownToPlainText = (markdown) => {
+    if (!markdown) return '';
+    
+    // 移除markdown标记
+    let text = markdown
+      // 移除标题标记
+      .replace(/^#+\s+/gm, '')
+      // 移除粗体标记
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      // 移除斜体标记
+      .replace(/\*(.*?)\*/g, '$1')
+      // 移除代码块标记
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/`([^`]*)`/g, '$1')
+      // 移除链接标记
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      // 移除图片标记
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+      // 移除引用标记
+      .replace(/^>\s+/gm, '')
+      // 移除列表标记
+      .replace(/^[-*+]\s+/gm, '')
+      // 移除表格标记
+      .replace(/\|/g, ' ')
+      // 移除多余的空行
+      .replace(/\n{3,}/g, '\n\n')
+      // 移除行首尾空格
+      .replace(/^\s+|\s+$/gm, '')
+      // 移除HTML标签
+      .replace(/<[^>]*>/g, '');
+    
+    return text.trim();
+  };
+
+  // 导出为Markdown内容的辅助函数
+  const exportToMarkdownContent = (data) => {
+    let content = `# AI Resume Screening Report\n\n`;
+    content += `**Generated**: ${new Date().toLocaleString('zh-CN')}\n`;
+    content += `**Count**: ${data.length} resumes\n\n`;
+    
+    data.forEach((result, index) => {
+      content += `## ${index + 1}. ${result.filename || '未知文件'}\n\n`;
+      content += `- **相似度**: ${(result.rerank_score * 100).toFixed(1)}%\n`;
+      content += `- **上传时间**: ${formatDate(result.created_at)}\n`;
+      content += `- **文件大小**: ${formatSize(result.file_size)}\n\n`;
+      
+      if (result.llm_evaluation) {
+        content += `### AI评估\n\n`;
+        content += `${result.llm_evaluation}\n\n`;
+      }
+      
+      content += `---\n\n`;
+    });
+    
+    return content;
+  };
+
+  // 导出为Markdown
+  const exportToMarkdown = (data) => {
+    let markdownContent = `# AI简历筛选结果报告\n\n`;
+    markdownContent += `**生成时间**: ${new Date().toLocaleString('zh-CN')}\n`;
+    markdownContent += `**导出数量**: ${data.length} 份简历\n\n`;
+    
+    data.forEach((result, index) => {
+      markdownContent += `## ${index + 1}. ${result.filename || '未知文件'}\n\n`;
+      markdownContent += `- **相似度**: ${(result.rerank_score * 100).toFixed(1)}%\n`;
+      markdownContent += `- **上传时间**: ${formatDate(result.created_at)}\n`;
+      markdownContent += `- **文件大小**: ${formatSize(result.file_size)}\n\n`;
+      
+      if (result.llm_evaluation) {
+        markdownContent += `### AI评估\n\n`;
+        markdownContent += `${result.llm_evaluation}\n\n`;
+      }
+      
+      markdownContent += `---\n\n`;
+    });
+    
+    // 创建下载链接
+    const blob = new Blob([markdownContent], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = '简历筛选结果.md';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleBatchDeleteHistory = async () => {
@@ -203,39 +433,30 @@ const Screening = () => {
   };
 
   const streamScreeningResults = async (jobId, jobDescription = null) => {
-    const token = localStorage.getItem('token');
     let url;
-    let method = 'POST';
-    let body = null;
+    let data = null;
     
     if (jobId) {
       // 选择岗位模式
-      url = `http://localhost:8000/api/screening/screen_by_job/${jobId}?top_k=${topK}&model=${selectedModel}`;
-      method = 'POST';
+      url = `/api/screening/screen_by_job/${jobId}?top_k=${topK}&model=${selectedModel}`;
     } else {
       // 自定义描述模式
-      url = `http://localhost:8000/api/screening/screen?top_k=${topK}&model=${selectedModel}`;
-      method = 'POST';
-      body = JSON.stringify({
+      url = `/api/screening/screen?top_k=${topK}&model=${selectedModel}`;
+      data = {
         job_description: jobDescription,
         top_k: topK,
         model: selectedModel
-      });
+      };
     }
 
     try {
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-      };
-      
-      if (jobDescription) {
-        headers['Content-Type'] = 'application/json';
-      }
-      
       const response = await fetch(url, {
-        method: method,
-        headers: headers,
-        body: body
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: data ? JSON.stringify(data) : null
       });
 
       if (!response.ok) {
@@ -642,11 +863,70 @@ const Screening = () => {
                   {!showHistory && results.length > 0 && ` (${results.length})`}
                 </h3>
                 <div style={styles.headerActions}>
-                  {showHistory && selectedHistory.length > 0 && (
-                    <button style={styles.batchDeleteButton} onClick={handleBatchDeleteHistory}>
-                      删除选中 ({selectedHistory.length})
-                    </button>
-                  )}
+                  {/* 按钮容器 - 水平布局 */}
+                  <div style={styles.buttonGroup}>
+                    {/* 导出功能 - 带下拉菜单 */}
+                    {((showHistory && filteredHistoryResults.length > 0) || (!showHistory && results.length > 0)) && (
+                      <div style={styles.exportButtonContainer}>
+                        <div 
+                          style={styles.exportButtonWrapper}
+                          onMouseEnter={() => setShowExportDropdown(true)}
+                          onMouseLeave={() => setShowExportDropdown(false)}
+                        >
+                          <button 
+                            style={{
+                              ...styles.exportButton,
+                              ...(selectedResults.length === 0 ? styles.exportButtonDisabled : {})
+                            }}
+                            onClick={handleExportResults}
+                            disabled={selectedResults.length === 0}
+                          >
+                            导出选中 ({selectedResults.length})
+                          </button>
+                          {showExportDropdown && (
+                            <div style={styles.exportDropdown}>
+                              <div 
+                                style={{
+                                  ...styles.exportOption,
+                                  ...(exportType === 'pdf' ? styles.exportOptionSelected : {})
+                                }}
+                                onClick={() => {
+                                  setExportType('pdf');
+                                  setShowExportDropdown(false);
+                                }}
+                              >
+                                📄 PDF格式
+                              </div>
+                              <div 
+                                style={{
+                                  ...styles.exportOption,
+                                  ...(exportType === 'markdown' ? styles.exportOptionSelected : {})
+                                }}
+                                onClick={() => {
+                                  setExportType('markdown');
+                                  setShowExportDropdown(false);
+                                }}
+                              >
+                                📝 Markdown格式
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div style={styles.exportTypeHint}>
+                          当前格式: {exportType === 'pdf' ? 'PDF' : 'Markdown'}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* 删除按钮 */}
+                    {showHistory && selectedHistory.length > 0 && (
+                      <button style={styles.batchDeleteButton} onClick={handleBatchDeleteHistory}>
+                        删除选中 ({selectedHistory.length})
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* 历史/新结果切换按钮 */}
                   {selectedJob && (historyResults.length > 0 || results.length > 0) && (
                     <button
                       style={{
@@ -654,7 +934,11 @@ const Screening = () => {
                         backgroundColor: showHistory ? '#667eea' : '#f5f5f5',
                         color: showHistory ? 'white' : '#333'
                       }}
-                      onClick={() => setShowHistory(!showHistory)}
+                      onClick={() => {
+                        setShowHistory(!showHistory);
+                        setSelectedResults([]);
+                        setSelectAllResults(false);
+                      }}
                     >
                       {showHistory ? '查看新结果' : '查看历史'}
                     </button>
@@ -716,25 +1000,26 @@ const Screening = () => {
                         </div>
                       )}
                       
-                      {/* 全选功能 */}
-                      {filteredHistoryResults.length > 0 && (
-                        <div style={styles.selectAllContainer}>
-                          <div 
-                            style={styles.selectAllLabel} 
-                            onClick={handleSelectAllHistory}
-                          >
-                            <div
-                              style={{
-                                ...styles.customCheckbox,
-                                ...(selectAllHistory ? styles.customCheckboxChecked : {})
-                              }}
-                            >
-                              {selectAllHistory && '✓'}
-                            </div>
-                            全选
-                          </div>
+                  {/* 合并的全选功能 */}
+                  {((showHistory && filteredHistoryResults.length > 0) || (!showHistory && results.length > 0)) && (
+                    <div style={styles.selectAllContainer}>
+                      <div 
+                        style={styles.selectAllLabel} 
+                        onClick={showHistory ? handleSelectAllHistory : handleSelectAllResults}
+                      >
+                        <div
+                          style={{
+                            ...styles.customCheckbox,
+                            border: '2px solid #667eea',
+                            ...(showHistory ? (selectAllHistory ? styles.customCheckboxChecked : {}) : (selectAllResults ? styles.customCheckboxChecked : {}))
+                          }}
+                        >
+                          {(showHistory ? selectAllHistory : selectAllResults) && '✓'}
                         </div>
-                      )}
+                        {showHistory ? '全选记录' : '全选导出结果'}
+                      </div>
+                    </div>
+                  )}
                       
                       {filteredHistoryResults.map((result, index) => {
                         const isExpanded = expandedItems[`history-${result.result_id}`] || false;
@@ -754,18 +1039,19 @@ const Screening = () => {
                               }}
                               onClick={() => toggleExpand(`history-${result.result_id}`, result.filename || '未知文件名')}
                             >
-                              {/* 复选框 */}
+                              {/* 合并的复选框 - 同时处理导出和删除 */}
                               <div
                                 style={{
                                   ...styles.customCheckbox,
-                                  ...(selectedHistory.includes(result.result_id) ? styles.customCheckboxChecked : {})
+                                  border: '2px solid #667eea',
+                                  ...((selectedResults.includes(result.resume_id) && selectedHistory.includes(result.result_id)) ? styles.customCheckboxChecked : {})
                                 }}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleSelectHistory(result.result_id);
+                                  handleSelectResult(result.resume_id, result.result_id);
                                 }}
                               >
-                                {selectedHistory.includes(result.result_id) && '✓'}
+                                {(selectedResults.includes(result.resume_id) && selectedHistory.includes(result.result_id)) && '✓'}
                               </div>
                               
                               <div style={styles.resultRank}>
@@ -862,6 +1148,21 @@ const Screening = () => {
                             }}
                             onClick={() => toggleExpand(result.resume_id, result.filename || '未知文件名')}
                           >
+                            {/* 合并的复选框 */}
+                            <div
+                              style={{
+                                ...styles.customCheckbox,
+                                border: '2px solid #667eea',
+                                ...(selectedResults.includes(result.resume_id) ? styles.customCheckboxChecked : {})
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectResult(result.resume_id, null);
+                              }}
+                            >
+                              {selectedResults.includes(result.resume_id) && '✓'}
+                            </div>
+                            
                             <div style={styles.resultRank}>
                               <span style={styles.rankNumber}>#{index + 1}</span>
                             </div>
@@ -1072,6 +1373,74 @@ const styles = {
     gap: '12px',
     alignItems: 'center',
   },
+  buttonGroup: {
+    display: 'flex',
+    gap: '8px',
+    alignItems: 'center',
+  },
+  // 导出按钮容器 - 水平布局
+  exportButtonContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  exportButtonWrapper: {
+    position: 'relative',
+    display: 'inline-block',
+  },
+  exportButton: {
+    padding: '6px 12px',
+    backgroundColor: '#28a745',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: '500',
+    transition: 'all 0.2s',
+    position: 'relative',
+    zIndex: 10,
+  },
+  exportButtonDisabled: {
+    backgroundColor: '#ccc',
+    color: '#999',
+    cursor: 'not-allowed',
+  },
+  exportDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    backgroundColor: 'white',
+    border: '2px solid #667eea',
+    borderRadius: '6px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+    zIndex: 1000,
+    minWidth: '140px',
+    overflow: 'hidden',
+  },
+  exportOption: {
+    padding: '10px 12px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    transition: 'all 0.2s',
+    borderBottom: '1px solid #f0f0f0',
+    color: '#333',
+    fontWeight: '500',
+  },
+  exportOptionSelected: {
+    backgroundColor: '#667eea',
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  'exportOption:hover': {
+    backgroundColor: '#f0f7ff',
+    color: '#667eea',
+  },
+  exportTypeHint: {
+    fontSize: '11px',
+    color: '#999',
+    whiteSpace: 'nowrap',
+  },
   batchDeleteButton: {
     padding: '6px 12px',
     backgroundColor: '#e74c3c',
@@ -1130,15 +1499,19 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '16px',
-    height: '16px',
-    borderRadius: '3px',
+    width: '18px',
+    height: '18px',
+    borderRadius: '4px',
     cursor: 'pointer',
     fontSize: '12px',
+    fontWeight: 'bold',
     transition: 'all 0.2s',
-    border: '1px solid #d0d0d0',
+    borderWidth: '2px',
+    borderStyle: 'solid',
+    borderColor: '#667eea',
     backgroundColor: 'white',
     flexShrink: 0,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
   },
   customCheckboxChecked: {
     backgroundColor: '#667eea',
@@ -1296,13 +1669,17 @@ const styles = {
   },
   resultItem: {
     padding: '20px',
-    border: '1px solid #e0e0e0',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: '#e0e0e0',
     borderRadius: '8px',
     backgroundColor: '#fafafa',
   },
   resultItemExpanded: {
     padding: '20px',
-    border: '2px solid #667eea',
+    borderWidth: '2px',
+    borderStyle: 'solid',
+    borderColor: '#667eea',
     borderRadius: '8px',
     backgroundColor: '#fafafa',
   },

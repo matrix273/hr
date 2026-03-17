@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 const Home = () => {
+  const navigate = useNavigate();
   const [showContactModal, setShowContactModal] = useState(false);
   const [contactForm, setContactForm] = useState({
     name: '',
@@ -76,7 +78,7 @@ const Home = () => {
             <button style={styles.primaryButton} onClick={() => window.location.href = '/login'}>
               登录
             </button>
-            <button style={styles.secondaryButton}>
+            <button style={styles.secondaryButton} onClick={() => navigate('/help')}>
               了解更多
             </button>
           </div>
