@@ -15,7 +15,6 @@ from .models.schemas import (
 from .config import CORS_ORIGINS, FASTAPI_HOST, FASTAPI_PORT
 from .utils.logger import logger
 from .utils.fastapi_logger import setup_fastapi_logger, log_exception
-from .routes import auth_router
 from .routes.auth_db import create_default_admin
 from .auth import get_current_active_user, Permission, require_permission
 from .database import AsyncSessionLocal, close_db
@@ -82,9 +81,9 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(auth_router)
+# app.include_router(auth_router)  # 禁用基于JSON文件的旧认证系统
 from .routes.auth_db import router as auth_db_router
-app.include_router(auth_db_router)
+app.include_router(auth_db_router)  # 使用基于数据库的新认证系统
 from .routes.resumes import router as resumes_router
 app.include_router(resumes_router)
 from .routes.jobs import router as jobs_router
