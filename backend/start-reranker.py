@@ -26,7 +26,7 @@ app = FastAPI(title="Qwen3-Reranker API")
 # 模型配置 - 使用本地模型路径
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # 环变量 RERANKER_MODEL_PATH 可覆盖模型路径
-MODEL_NAME = os.getenv("RERANKER_MODEL_PATH", os.path.join(SCRIPT_DIR, "app/models/Qwen/Qwen3_Reranker_0.6B"))
+MODEL_NAME = os.getenv("RERANKER_MODEL_PATH", os.path.join(SCRIPT_DIR, "app/models/Qwen/Qwen3-Reranker-0.6B"))
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 logger.info(f"Model path: {MODEL_NAME}")
