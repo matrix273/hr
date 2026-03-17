@@ -320,7 +320,7 @@ async def list_resumes(
         简历列表
     """
     # 检查权限
-    from ..auth.rbac import check_permission
+    from ..auth.rbac import check_permission, Role
     if not check_permission(Permission.RESUME_READ, current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -328,13 +328,36 @@ async def list_resumes(
         )
 
     try:
+        # 获取当前用户信息
+        from ..models.user import User
         result = await db.execute(
-            select(Resume).order_by(Resume.created_at.desc())
+            select(User).where(User.username == current_user['username'])
         )
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="用户不存在"
+            )
+
+        # 根据用户角色过滤简历
+        user_role = Role(current_user.get("role", Role.USER))
+        
+        if user_role == Role.ADMIN:
+            # 管理员可以看到所有简历
+            query = select(Resume).order_by(Resume.created_at.desc())
+        else:
+            # 非管理员只能看到自己上传的简历
+            query = select(Resume).where(
+                Resume.user_id == user.id
+            ).order_by(Resume.created_at.desc())
+
+        result = await db.execute(query)
         resumes = result.scalars().all()
         resumes_list = [resume.to_dict() for resume in resumes]
 
-        logger.info(f"获取简历列表: {len(resumes_list)} 个简历, 用户: {current_user['username']}")
+        logger.info(f"获取简历列表: {len(resumes_list)} 个简历, 用户: {current_user['username']}, 角色: {user_role.value}")
 
         return {"success": True, "resumes": resumes_list}
 

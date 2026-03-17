@@ -41,6 +41,9 @@ class Permission(str, Enum):
     USER_UPDATE = "user:update"
     USER_DELETE = "user:delete"
 
+    # 报表统计
+    REPORT_READ = "report:read"
+
     # 系统管理
     SYSTEM_CONFIG = "system:config"
     SYSTEM_ADMIN = "system:admin"
@@ -49,87 +52,90 @@ class Permission(str, Enum):
 # 角色权限映射
 ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
     Role.ADMIN: {
-        # 简历管理
+        # 简历管理 - 完整权限
         Permission.RESUME_READ,
         Permission.RESUME_CREATE,
         Permission.RESUME_UPDATE,
         Permission.RESUME_DELETE,
-        # 岗位管理
+        # 岗位管理 - 完整权限
         Permission.JOB_READ,
         Permission.JOB_CREATE,
         Permission.JOB_UPDATE,
         Permission.JOB_DELETE,
-        # 筛选管理
+        # 筛选管理 - 完整权限
         Permission.SCREENING_READ,
         Permission.SCREENING_EXECUTE,
         Permission.SCREENING_DELETE,
-        # 用户管理
+        # 用户管理 - 完整权限
         Permission.USER_READ,
         Permission.USER_CREATE,
         Permission.USER_UPDATE,
         Permission.USER_DELETE,
-        # 系统管理
+        # 报表统计 - 完整权限
+        Permission.REPORT_READ,
+        # 系统管理 - 完整权限
         Permission.SYSTEM_CONFIG,
         Permission.SYSTEM_ADMIN,
     },
     Role.MANAGER: {
-        # 简历管理
+        # 简历管理 - 可读取、创建、更新，删除需审批
         Permission.RESUME_READ,
         Permission.RESUME_CREATE,
         Permission.RESUME_UPDATE,
-        # 岗位管理
+        # 岗位管理 - 完整权限
         Permission.JOB_READ,
         Permission.JOB_CREATE,
         Permission.JOB_UPDATE,
         Permission.JOB_DELETE,
-        # 筛选管理
+        # 筛选管理 - 可执行和查看，删除需审批
         Permission.SCREENING_READ,
         Permission.SCREENING_EXECUTE,
-        Permission.SCREENING_DELETE,
-        # 用户管理
+        # 用户管理 - 可查看和更新用户信息
         Permission.USER_READ,
         Permission.USER_UPDATE,
+        # 报表统计 - 可查看报表
+        Permission.REPORT_READ,
     },
     Role.HR: {
-        # 简历管理
+        # 简历管理 - 可读取、创建、更新，删除需审批
         Permission.RESUME_READ,
         Permission.RESUME_CREATE,
         Permission.RESUME_UPDATE,
-        Permission.RESUME_DELETE,
-        # 岗位管理
+        # 岗位管理 - 可创建和修改岗位，删除需审批
         Permission.JOB_READ,
         Permission.JOB_CREATE,
         Permission.JOB_UPDATE,
-        Permission.JOB_DELETE,
-        # 筛选管理
+        # 筛选管理 - 可执行和查看筛选
         Permission.SCREENING_READ,
         Permission.SCREENING_EXECUTE,
-        Permission.SCREENING_DELETE,
-        # 用户管理
+        # 用户管理 - 仅可查看和更新非管理员用户
         Permission.USER_READ,
+        Permission.USER_UPDATE,
+        # 报表统计 - 可查看报表
+        Permission.REPORT_READ,
     },
     Role.RECRUITER: {
-        # 简历管理
+        # 简历管理 - 可读取和上传简历
         Permission.RESUME_READ,
         Permission.RESUME_CREATE,
-        # 岗位管理
+        # 岗位管理 - 可查看岗位信息
         Permission.JOB_READ,
-        # 筛选管理
+        # 筛选管理 - 可执行和查看筛选结果
         Permission.SCREENING_READ,
         Permission.SCREENING_EXECUTE,
     },
     Role.INTERVIEWER: {
-        # 简历管理
+        # 简历管理 - 可查看简历
         Permission.RESUME_READ,
-        # 岗位管理
+        # 岗位管理 - 可查看岗位信息
         Permission.JOB_READ,
-        # 筛选管理
+        # 筛选管理 - 可查看筛选结果
         Permission.SCREENING_READ,
     },
     Role.USER: {
-        # 简历管理
+        # 简历管理 - 可查看自己的简历
         Permission.RESUME_READ,
-        # 岗位管理
+        # 岗位管理 - 可查看岗位信息
         Permission.JOB_READ,
     },
 }

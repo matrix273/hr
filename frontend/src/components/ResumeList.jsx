@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
+import { 
+  Permission, 
+  hasPermission, 
+  getButtonStyle, 
+  isButtonDisabled,
+  shouldShowElement,
+  getPermissionHint 
+} from '../utils/permissions';
 
 const ResumeList = ({ onUploadSuccess }) => {
   const [resumes, setResumes] = useState([]);
@@ -196,14 +204,26 @@ const ResumeList = ({ onUploadSuccess }) => {
       <div style={styles.header}>
         <h2 style={styles.title}>简历管理</h2>
         <div style={styles.headerActions}>
-          {selectedResumes.length > 0 && (
-            <button style={styles.batchDeleteButton} onClick={handleBatchDelete}>
+          {shouldShowElement(Permission.RESUME_DELETE) && selectedResumes.length > 0 && (
+            <button 
+              style={getButtonStyle(Permission.RESUME_DELETE, styles.batchDeleteButton)}
+              onClick={handleBatchDelete}
+              disabled={isButtonDisabled(Permission.RESUME_DELETE)}
+              title={getPermissionHint(Permission.RESUME_DELETE)}
+            >
               删除选中 ({selectedResumes.length})
             </button>
           )}
-          <button style={styles.refreshButton} onClick={fetchResumes}>
-            刷新
-          </button>
+          {shouldShowElement(Permission.RESUME_READ) && (
+            <button 
+              style={getButtonStyle(Permission.RESUME_READ, styles.refreshButton)}
+              onClick={fetchResumes}
+              disabled={isButtonDisabled(Permission.RESUME_READ)}
+              title={getPermissionHint(Permission.RESUME_READ)}
+            >
+              刷新
+            </button>
+          )}
         </div>
       </div>
 
@@ -213,7 +233,7 @@ const ResumeList = ({ onUploadSuccess }) => {
         <div style={styles.listContainer}>
           <div style={styles.listHeader}>
             <h3 style={styles.listTitle}>简历列表 ({resumes.length})</h3>
-            {resumes.length > 0 && (
+            {shouldShowElement(Permission.RESUME_DELETE) && resumes.length > 0 && (
               <div style={styles.selectAllLabel} onClick={handleSelectAll}>
                 <div
                   style={{
@@ -244,18 +264,20 @@ const ResumeList = ({ onUploadSuccess }) => {
                   }}
                 >
                   <div style={styles.resumeMain}>
-                    <div
-                      style={{
-                        ...styles.customCheckbox,
-                        ...(selectedResumes.includes(resume.resume_id) ? styles.customCheckboxChecked : {})
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSelectResume(resume.resume_id);
-                      }}
-                    >
-                      {selectedResumes.includes(resume.resume_id) && '✓'}
-                    </div>
+                    {shouldShowElement(Permission.RESUME_DELETE) && (
+                      <div
+                        style={{
+                          ...styles.customCheckbox,
+                          ...(selectedResumes.includes(resume.resume_id) ? styles.customCheckboxChecked : {})
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectResume(resume.resume_id);
+                        }}
+                      >
+                        {selectedResumes.includes(resume.resume_id) && '✓'}
+                      </div>
+                    )}
                     <div style={styles.resumeIcon}>📄</div>
                     <div style={styles.resumeInfo}>
                       <div style={styles.resumeName}>{resume.filename}</div>
@@ -276,24 +298,32 @@ const ResumeList = ({ onUploadSuccess }) => {
                     </div>
                   </div>
                   <div style={styles.actionButtons}>
-                    <button
-                      style={styles.viewButton}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleView(resume);
-                      }}
-                    >
-                      查看
-                    </button>
-                    <button
-                      style={styles.deleteButton}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(resume.resume_id);
-                      }}
-                    >
-                      删除
-                    </button>
+                    {shouldShowElement(Permission.RESUME_READ) && (
+                      <button
+                        style={getButtonStyle(Permission.RESUME_READ, styles.viewButton)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleView(resume);
+                        }}
+                        disabled={isButtonDisabled(Permission.RESUME_READ)}
+                        title={getPermissionHint(Permission.RESUME_READ)}
+                      >
+                        查看
+                      </button>
+                    )}
+                    {shouldShowElement(Permission.RESUME_DELETE) && (
+                      <button
+                        style={getButtonStyle(Permission.RESUME_DELETE, styles.deleteButton)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(resume.resume_id);
+                        }}
+                        disabled={isButtonDisabled(Permission.RESUME_DELETE)}
+                        title={getPermissionHint(Permission.RESUME_DELETE)}
+                      >
+                        删除
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

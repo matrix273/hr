@@ -106,6 +106,7 @@ async def list_jobs(
         岗位列表
     """
     # 检查权限
+    from ..auth.rbac import Role
     if not check_permission(Permission.JOB_READ, current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -113,13 +114,35 @@ async def list_jobs(
         )
 
     try:
+        # 获取当前用户信息
         result = await db.execute(
-            select(Job).order_by(Job.created_at.desc())
+            select(User).where(User.username == current_user['username'])
         )
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="用户不存在"
+            )
+
+        # 根据用户角色过滤岗位
+        user_role = Role(current_user.get("role", Role.USER))
+        
+        if user_role == Role.ADMIN:
+            # 管理员可以看到所有岗位
+            query = select(Job).order_by(Job.created_at.desc())
+        else:
+            # 非管理员只能看到自己创建的岗位
+            query = select(Job).where(
+                Job.user_id == user.id
+            ).order_by(Job.created_at.desc())
+
+        result = await db.execute(query)
         jobs = result.scalars().all()
         jobs_list = [job.to_dict() for job in jobs]
 
-        logger.info(f"获取岗位列表: {len(jobs_list)} 个岗位, 用户: {current_user['username']}")
+        logger.info(f"获取岗位列表: {len(jobs_list)} 个岗位, 用户: {current_user['username']}, 角色: {user_role.value}")
 
         return JobListResponse(success=True, jobs=jobs_list)
 
