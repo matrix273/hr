@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 
 function App() {
@@ -15,6 +16,9 @@ function App() {
       
       {/* 登录页面 */}
       <Route path="/login" element={<Login />} />
+      
+      {/* 注册页面 */}
+      <Route path="/register" element={<Register />} />
       
       {/* 应用页面（需要认证） */}
       <Route

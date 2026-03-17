@@ -1,6 +1,66 @@
-import React from 'react';
+import React, { useState } from 'react';
+import axios from 'axios';
 
 const Home = () => {
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [contactForm, setContactForm] = useState({
+    name: '',
+    email: '',
+    message: '',
+  });
+  const [contactLoading, setContactLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
+
+  // 邮箱格式校验
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const handleContactChange = (e) => {
+    const { name, value } = e.target;
+    setContactForm({
+      ...contactForm,
+      [name]: value,
+    });
+
+    // 实时校验邮箱格式
+    if (name === 'email') {
+      if (value && !validateEmail(value)) {
+        setEmailError('请输入有效的邮箱格式');
+      } else {
+        setEmailError('');
+      }
+    }
+  };
+
+  const handleContactSubmit = async () => {
+    if (!contactForm.name || !contactForm.email || !contactForm.message) {
+      alert('请填写完整信息');
+      return;
+    }
+
+    if (!validateEmail(contactForm.email)) {
+      alert('请输入有效的邮箱格式');
+      return;
+    }
+
+    setContactLoading(true);
+    try {
+      const response = await axios.post('http://localhost:8000/api/users/contact', contactForm);
+      if (response.data.success) {
+        alert(response.data.message);
+        setShowContactModal(false);
+        setContactForm({ name: '', email: '', message: '' });
+        setEmailError('');
+      }
+    } catch (err) {
+      alert('提交失败，请稍后重试');
+    } finally {
+      setContactLoading(false);
+    }
+  };
+
   return (
     <div style={styles.container}>
       {/* Hero Section */}
@@ -88,20 +148,20 @@ const Home = () => {
         <h2 style={styles.sectionTitle}>技术栈</h2>
         <div style={styles.techGrid}>
           <div style={styles.techItem}>
-            <strong>AI 模型</strong>
-            <p>Qwen3-Embedding / Qwen3-Reranker</p>
+            <strong style={styles.techItemTitle}>AI 模型</strong>
+            <p style={styles.techItemText}>Qwen3-Embedding / Qwen3-Reranker</p>
           </div>
           <div style={styles.techItem}>
-            <strong>向量数据库</strong>
-            <p>Milvus</p>
+            <strong style={styles.techItemTitle}>向量数据库</strong>
+            <p style={styles.techItemText}>Milvus</p>
           </div>
           <div style={styles.techItem}>
-            <strong>后端</strong>
-            <p>FastAPI / Python</p>
+            <strong style={styles.techItemTitle}>后端</strong>
+            <p style={styles.techItemText}>FastAPI / Python</p>
           </div>
           <div style={styles.techItem}>
-            <strong>前端</strong>
-            <p>React / Vite</p>
+            <strong style={styles.techItemTitle}>前端</strong>
+            <p style={styles.techItemText}>React / Vite</p>
           </div>
         </div>
       </section>
@@ -120,7 +180,73 @@ const Home = () => {
       {/* Footer */}
       <footer style={styles.footer}>
         <p>&copy; 2025 AI 简历筛选系统. All rights reserved.</p>
+        <p style={styles.contactLink} onClick={() => setShowContactModal(true)}>
+          联系我
+        </p>
       </footer>
+
+      {/* 联系我对话框 */}
+      {showContactModal && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <h3 style={styles.modalTitle}>联系我</h3>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>姓名 <span style={styles.required}>*</span></label>
+              <input
+                type="text"
+                name="name"
+                value={contactForm.name}
+                onChange={handleContactChange}
+                style={styles.input}
+                placeholder="请输入您的姓名"
+              />
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>邮箱 <span style={styles.required}>*</span></label>
+              <input
+                type="email"
+                name="email"
+                value={contactForm.email}
+                onChange={handleContactChange}
+                style={{
+                  ...styles.input,
+                  borderColor: emailError ? '#e74c3c' : '#ddd',
+                }}
+                placeholder="请输入您的邮箱"
+              />
+              {emailError && <span style={styles.emailError}>{emailError}</span>}
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>留言 <span style={styles.required}>*</span></label>
+              <textarea
+                name="message"
+                value={contactForm.message}
+                onChange={handleContactChange}
+                style={styles.textarea}
+                placeholder="请输入您想咨询的内容..."
+                rows={4}
+              />
+            </div>
+            <div style={styles.modalButtons}>
+              <button
+                type="button"
+                style={styles.cancelButton}
+                onClick={() => setShowContactModal(false)}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                style={styles.confirmButton}
+                onClick={handleContactSubmit}
+                disabled={contactLoading}
+              >
+                {contactLoading ? '提交中...' : '提交'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -251,6 +377,17 @@ const styles = {
   techItem: {
     textAlign: 'center',
   },
+  techItemText: {
+    color: '#333',
+    fontSize: '16px',
+    marginTop: '8px',
+    fontWeight: '500',
+  },
+  techItemTitle: {
+    color: '#222',
+    fontSize: '18px',
+    fontWeight: 'bold',
+  },
   ctaSection: {
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: 'white',
@@ -281,6 +418,102 @@ const styles = {
     color: 'white',
     textAlign: 'center',
     padding: '30px 20px',
+  },
+  contactLink: {
+    marginTop: '15px',
+    cursor: 'pointer',
+    color: '#667eea',
+    fontSize: '18px',
+    fontWeight: 'bold',
+  },
+  // 对话框样式
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    padding: '30px',
+    borderRadius: '12px',
+    width: '90%',
+    maxWidth: '400px',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+  },
+  modalTitle: {
+    fontSize: '22px',
+    marginBottom: '20px',
+    textAlign: 'center',
+    color: '#333',
+  },
+  formGroup: {
+    marginBottom: '16px',
+  },
+  label: {
+    display: 'block',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    color: '#555',
+    marginBottom: '6px',
+  },
+  required: {
+    color: '#e74c3c',
+  },
+  emailError: {
+    color: '#e74c3c',
+    fontSize: '12px',
+    marginTop: '4px',
+    display: 'block',
+  },
+  input: {
+    width: '100%',
+    padding: '12px',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    fontSize: '14px',
+    boxSizing: 'border-box',
+  },
+  textarea: {
+    width: '100%',
+    padding: '12px',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    fontSize: '14px',
+    boxSizing: 'border-box',
+    resize: 'vertical',
+    fontFamily: 'inherit',
+  },
+  modalButtons: {
+    display: 'flex',
+    gap: '12px',
+    marginTop: '20px',
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    color: '#666',
+    border: 'none',
+    padding: '12px',
+    borderRadius: '6px',
+    fontSize: '16px',
+    cursor: 'pointer',
+  },
+  confirmButton: {
+    flex: 1,
+    backgroundColor: '#667eea',
+    color: 'white',
+    border: 'none',
+    padding: '12px',
+    borderRadius: '6px',
+    fontSize: '16px',
+    cursor: 'pointer',
   },
 };
 

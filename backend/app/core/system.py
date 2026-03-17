@@ -9,13 +9,19 @@ from ..utils.logger import logger
 
 
 class ResumeScreeningSystem:
-    """AI Resume Screening System"""
+    """AI Resume Screening System with graceful degradation"""
 
     def __init__(self):
         self.embedding = QwenEmbedding()
         self.vector_db = MilvusVectorDB()
         self.reranker = QwenReranker()
         self.llm = LLMClient()
+        
+        # Check if vector database is available
+        if not self.vector_db.is_connected():
+            logger.warning("向量数据库不可用，系统将在降级模式下运行")
+        else:
+            logger.info("向量数据库连接正常")
 
     def add_resume(self, resume_id: str, resume_text: str) -> bool:
         """Add a resume to the system"""
@@ -36,6 +42,11 @@ class ResumeScreeningSystem:
     def screen_resumes(self, job_description: str, top_k: int = 5, model: str = None) -> List[Dict[str, Any]]:
         """Screen resumes for a job description"""
         try:
+            # Check if vector database is available
+            if not self.vector_db.is_connected():
+                logger.warning("向量数据库不可用，无法进行简历筛选")
+                return []
+
             # Generate embedding for job description
             logger.info("开始生成 job description embedding")
             query_embedding = self.embedding.embed_single(job_description)
@@ -45,6 +56,10 @@ class ResumeScreeningSystem:
             logger.info("开始在向量数据库中搜索")
             search_results = self.vector_db.search(query_embedding, top_k)
             logger.info(f"向量搜索完成, 找到 {len(search_results)} 个结果")
+
+            if not search_results:
+                logger.warning("未找到匹配的简历")
+                return []
 
             # Extract resume texts
             resume_texts = [result["resume_text"] for result in search_results]

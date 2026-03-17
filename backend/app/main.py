@@ -91,6 +91,8 @@ from .routes.jobs import router as jobs_router
 app.include_router(jobs_router)
 from .routes.screening import router as screening_router
 app.include_router(screening_router)
+from .routes.users import router as users_router
+app.include_router(users_router)
 
 
 @app.get("/", tags=["Root"])

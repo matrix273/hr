@@ -33,6 +33,7 @@ class Permission(str, Enum):
     # 筛选管理
     SCREENING_READ = "screening:read"
     SCREENING_EXECUTE = "screening:execute"
+    SCREENING_DELETE = "screening:delete"
 
     # 用户管理
     USER_READ = "user:read"
@@ -61,6 +62,7 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         # 筛选管理
         Permission.SCREENING_READ,
         Permission.SCREENING_EXECUTE,
+        Permission.SCREENING_DELETE,
         # 用户管理
         Permission.USER_READ,
         Permission.USER_CREATE,
@@ -83,6 +85,7 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         # 筛选管理
         Permission.SCREENING_READ,
         Permission.SCREENING_EXECUTE,
+        Permission.SCREENING_DELETE,
         # 用户管理
         Permission.USER_READ,
         Permission.USER_UPDATE,
@@ -101,6 +104,7 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         # 筛选管理
         Permission.SCREENING_READ,
         Permission.SCREENING_EXECUTE,
+        Permission.SCREENING_DELETE,
         # 用户管理
         Permission.USER_READ,
     },

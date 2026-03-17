@@ -73,21 +73,31 @@ QWEN_RERANKER_API_KEY = os.getenv("QWEN_RERANKER_API_KEY", "not_required")
 QWEN_RERANKER_MODEL = os.getenv("QWEN_RERANKER_MODEL", "Qwen3-Reranker-0.6B")
 
 # LLM Configuration
-LLM_URL = os.getenv("LLM_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")
-LLM_API_KEY = os.getenv("LLM_API_KEY", "")
-LLM_MODEL = os.getenv("LLM_MODEL", "qwen-plus")
+LLM_URL = os.getenv("LLM_URL", "http://localhost:8002/v1/chat/completions")
+LLM_API_KEY = os.getenv("LLM_API_KEY", "not_required")
+LLM_MODEL = os.getenv("LLM_MODEL", "Qwen3.5-0.8B")
 
 # 多模型 LLM Configuration
 LLM_PROVIDERS = {
     "qwen-plus": {
-        "url": os.getenv("QWEN_LLM_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"),
-        "api_key": os.getenv("QWEN_LLM_API_KEY", ""),
-        "model": os.getenv("QWEN_LLM_MODEL", "qwen-plus")
+        "url": os.getenv("QWEN_LLM_URL", "http://localhost:8002/v1/chat/completions"),
+        "api_key": os.getenv("QWEN_LLM_API_KEY", "not_required"),
+        "model": os.getenv("QWEN_LLM_MODEL", "Qwen3.5-0.8B")
     },
     "deepseek-chat": {
-        "url": os.getenv("DEEPSEEK_LLM_URL", "https://api.deepseek.com/v1/chat/completions"),
-        "api_key": os.getenv("DEEPSEEK_LLM_API_KEY", ""),
-        "model": os.getenv("DEEPSEEK_LLM_MODEL", "deepseek-chat")
+        "url": os.getenv("DEEPSEEK_LLM_URL", "http://localhost:8002/v1/chat/completions"),
+        "api_key": os.getenv("DEEPSEEK_LLM_API_KEY", "not_required"),
+        "model": os.getenv("DEEPSEEK_LLM_MODEL", "Qwen3.5-0.8B")
+    },
+    "Qwen3.5-0.8B": {
+        "url": "http://localhost:8002/v1/chat/completions",
+        "api_key": "not_required",
+        "model": "Qwen3.5-0.8B"
+    },
+    "Qwen3.5-4B": {
+        "url": "http://localhost:8002/v1/chat/completions",
+        "api_key": "not_required",
+        "model": "Qwen3.5-4B"
     }
 }
 

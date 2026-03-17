@@ -11,6 +11,10 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  const handleBack = () => {
+    navigate('/');
+  };
+
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -48,7 +52,17 @@ const Login = () => {
   return (
     <div style={styles.container}>
       <div style={styles.loginBox}>
-        <h2 style={styles.title}>登录</h2>
+        <div style={styles.header}>
+          <button 
+            type="button" 
+            style={styles.backButton} 
+            onClick={handleBack}
+          >
+            ← 返回
+          </button>
+          <h2 style={styles.title}>登录</h2>
+          <div style={{ width: '60px' }}></div>
+        </div>
         <form onSubmit={handleSubmit} style={styles.form}>
           <div style={styles.formGroup}>
             <label style={styles.label}>用户名</label>
@@ -110,11 +124,27 @@ const styles = {
     maxWidth: '400px',
     minWidth: '320px',
   },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '30px',
+  },
+  backButton: {
+    backgroundColor: 'transparent',
+    border: 'none',
+    color: '#667eea',
+    fontSize: '14px',
+    cursor: 'pointer',
+    padding: '8px 12px',
+    borderRadius: '4px',
+    fontWeight: 'bold',
+  },
   title: {
     fontSize: '28px',
-    marginBottom: '30px',
     textAlign: 'center',
     color: '#333',
+    margin: 0,
   },
   form: {
     display: 'flex',

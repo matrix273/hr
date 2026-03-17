@@ -17,6 +17,7 @@ const Screening = () => {
   const [selectedModel, setSelectedModel] = useState('qwen-plus');
   const [currentProgress, setCurrentProgress] = useState(null);
   const [expandedItems, setExpandedItems] = useState({});
+  const [stickyTitle, setStickyTitle] = useState(null);
 
   const [useJobId, setUseJobId] = useState(true);
 
@@ -24,13 +25,81 @@ const Screening = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [historyResults, setHistoryResults] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  
+  // 批量删除状态
+  const [selectedHistory, setSelectedHistory] = useState([]);
+  const [selectAllHistory, setSelectAllHistory] = useState(false);
+  
+  // 根据筛选方式自动过滤历史记录
+  const filteredHistoryResults = historyResults.filter(result => {
+    // 如果使用岗位筛选，只显示岗位筛选类型的历史记录
+    if (useJobId && selectedJob) {
+      // 检查 screening_type 是否为 'job'，或者 job_id 不以 'custom_' 开头
+      return result.screening_type === 'job' || 
+             (!result.screening_type && !result.job_id?.startsWith('custom_'));
+    }
+    // 如果使用自定义描述筛选，只显示自定义筛选类型的历史记录
+    else if (!useJobId) {
+      // 检查 screening_type 是否为 'custom'，或者 job_id 以 'custom_' 开头
+      return result.screening_type === 'custom' || 
+             (!result.screening_type && result.job_id?.startsWith('custom_'));
+    }
+    // 其他情况（如选择岗位但没有选中岗位）
+    return false;
+  });
 
   // PDF预览状态
   const [previewResume, setPreviewResume] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
 
+  // 批量删除历史记录相关函数
+  const handleSelectAllHistory = () => {
+    if (selectAllHistory) {
+      setSelectedHistory([]);
+    } else {
+      setSelectedHistory(historyResults.map(r => r.result_id));
+    }
+    setSelectAllHistory(!selectAllHistory);
+  };
+
+  const handleSelectHistory = (resultId) => {
+    if (selectedHistory.includes(resultId)) {
+      setSelectedHistory(selectedHistory.filter(id => id !== resultId));
+    } else {
+      setSelectedHistory([...selectedHistory, resultId]);
+    }
+  };
+
+  const handleBatchDeleteHistory = async () => {
+    if (selectedHistory.length === 0) {
+      setError('请先选择要删除的历史记录');
+      return;
+    }
+
+    if (!window.confirm(`确定要删除选中的 ${selectedHistory.length} 条历史记录吗？`)) {
+      return;
+    }
+
+    try {
+      const response = await api.post('/api/screening/batch-delete', {
+        result_ids: selectedHistory
+      });
+
+      if (response.data.success) {
+        setHistoryResults(historyResults.filter(r => !selectedHistory.includes(r.result_id)));
+        setSelectedHistory([]);
+        setSelectAllHistory(false);
+        setError('');
+      } else {
+        setError('批量删除失败');
+      }
+    } catch (err) {
+      setError(err.response?.data?.detail || '批量删除失败');
+    }
+  };
+
   const models = [
-    { value: 'qwen-plus', label: '通义千问 Qwen Plus' },
+    { value: 'qwen-plus', label: '通义千问 Qwen Plus (推荐)' },
     { value: 'deepseek-chat', label: 'DeepSeek Chat' }
   ];
 
@@ -42,12 +111,14 @@ const Screening = () => {
         const config = JSON.parse(savedConfig);
         if (config.topK) setTopK(config.topK);
         if (config.selectedModel) setSelectedModel(config.selectedModel);
-        if (config.useJobId !== undefined) setUseJobId(config.useJobId);
         if (config.jobDescription) setJobDescription(config.jobDescription);
+        // 不再从本地存储加载 useJobId，始终默认使用选择岗位模式
       } catch (e) {
         console.error('加载配置失败:', e);
       }
     }
+    // 默认使用选择岗位模式
+    setUseJobId(true);
   }, []);
 
   // 保存配置
@@ -123,18 +194,7 @@ const Screening = () => {
           setLoading(false);
           return;
         }
-        const response = await api.post(
-          '/api/screening/screen',
-          {
-            job_description: jobDescription,
-            top_k: topK,
-            model: selectedModel
-          }
-        );
-        setResults(response.data.results || []);
-        if (!response.data.results || response.data.results.length === 0) {
-          setError('未找到匹配的简历');
-        }
+        await streamScreeningResults(null, jobDescription);
       }
     } catch (err) {
       setError(err.response?.data?.detail || '筛选失败');
@@ -142,16 +202,40 @@ const Screening = () => {
     }
   };
 
-  const streamScreeningResults = async (jobId) => {
+  const streamScreeningResults = async (jobId, jobDescription = null) => {
     const token = localStorage.getItem('token');
-    const url = `http://localhost:8000/api/screening/screen_by_job/${jobId}?top_k=${topK}&model=${selectedModel}`;
+    let url;
+    let method = 'POST';
+    let body = null;
+    
+    if (jobId) {
+      // 选择岗位模式
+      url = `http://localhost:8000/api/screening/screen_by_job/${jobId}?top_k=${topK}&model=${selectedModel}`;
+      method = 'POST';
+    } else {
+      // 自定义描述模式
+      url = `http://localhost:8000/api/screening/screen?top_k=${topK}&model=${selectedModel}`;
+      method = 'POST';
+      body = JSON.stringify({
+        job_description: jobDescription,
+        top_k: topK,
+        model: selectedModel
+      });
+    }
 
     try {
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+      };
+      
+      if (jobDescription) {
+        headers['Content-Type'] = 'application/json';
+      }
+      
       const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        method: method,
+        headers: headers,
+        body: body
       });
 
       if (!response.ok) {
@@ -160,6 +244,9 @@ const Screening = () => {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+
+      // 清空之前的结果
+      setResults([]);
 
       while (true) {
         const { done, value } = await reader.read();
@@ -180,6 +267,34 @@ const Screening = () => {
                 return;
               }
 
+              if (data.type === 'start') {
+                // 开始处理第一个简历
+                setCurrentProgress({
+                  current: 0,
+                  total: data.total,
+                  filename: '准备开始评估...'
+                });
+              }
+
+              if (data.type === 'progress') {
+                // 更新当前处理进度
+                setCurrentProgress({
+                  current: data.index,
+                  total: data.total,
+                  filename: data.filename || '正在评估...'
+                });
+              }
+
+              if (data.type === 'result') {
+                // 立即显示当前完成的结果
+                setResults(prev => [...prev, data]);
+                setCurrentProgress({
+                  current: data.index + 1,
+                  total: data.total,
+                  filename: '准备下一个...'
+                });
+              }
+
               if (data.type === 'done') {
                 setLoading(false);
                 setCurrentProgress(null);
@@ -187,15 +302,6 @@ const Screening = () => {
                   setError('未找到匹配的简历');
                 }
                 return;
-              }
-
-              if (data.type === 'result') {
-                setCurrentProgress({
-                  current: data.index,
-                  total: data.total,
-                  filename: data.filename
-                });
-                setResults(prev => [...prev, data]);
               }
             } catch (e) {
               console.error('解析 SSE 数据失败:', e);
@@ -211,11 +317,21 @@ const Screening = () => {
   };
 
   // 获取历史记录
-  const fetchHistory = async (jobId) => {
-    if (!jobId) return;
+  const fetchHistory = async (jobId, isCustomMode = false) => {
     setHistoryLoading(true);
     try {
-      const response = await api.get(`/api/screening/history/${jobId}`);
+      let response;
+      if (isCustomMode) {
+        // 自定义描述模式：获取所有自定义筛选的历史记录
+        response = await api.get('/api/screening/custom_history');
+      } else if (jobId) {
+        // 岗位筛选模式：获取特定岗位的历史记录
+        response = await api.get(`/api/screening/history/${jobId}`);
+      } else {
+        setHistoryResults([]);
+        return;
+      }
+      
       if (response.data.success) {
         setHistoryResults(response.data.results || []);
       }
@@ -240,11 +356,20 @@ const Screening = () => {
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
   };
 
-  const toggleExpand = (resumeId) => {
-    setExpandedItems(prev => ({
-      ...prev,
-      [resumeId]: !prev[resumeId]
-    }));
+  const toggleExpand = (resumeId, filename) => {
+    setExpandedItems(prev => {
+      const newExpanded = !prev[resumeId];
+      // 设置或清除粘性标题
+      if (newExpanded) {
+        setStickyTitle(filename);
+      } else if (stickyTitle === filename) {
+        setStickyTitle(null);
+      }
+      return {
+        ...prev,
+        [resumeId]: newExpanded
+      };
+    });
   };
 
   // PDF预览功能
@@ -314,7 +439,9 @@ const Screening = () => {
         <h2 style={styles.title}>简历筛选</h2>
       </div>
 
-      <div style={styles.content}>
+
+        
+        <div style={styles.content}>
         <div style={styles.leftPanel}>
           <div style={styles.card}>
             <div style={styles.cardHeader}>
@@ -331,7 +458,23 @@ const Screening = () => {
                       backgroundColor: useJobId ? '#667eea' : '#f5f5f5',
                       color: useJobId ? 'white' : '#333'
                     }}
-                    onClick={() => setUseJobId(true)}
+                    onClick={() => {
+                      setUseJobId(true);
+                      setJobDescription('');
+                      setResults([]);  // 清空新结果
+                      setError('');
+                      setStickyTitle(null);  // 清除粘性标题
+                      setExpandedItems({});  // 收起所有展开项
+                      // 如果有选中的岗位，显示其历史记录
+                      if (selectedJob) {
+                        fetchHistory(selectedJob.job_id);
+                        setShowHistory(true);
+                      } else {
+                        // 如果没有选中的岗位，清空历史记录但不隐藏面板
+                        setHistoryResults([]);
+                        setShowHistory(true);
+                      }
+                    }}
                   >
                     选择岗位
                   </button>
@@ -341,7 +484,17 @@ const Screening = () => {
                       backgroundColor: !useJobId ? '#667eea' : '#f5f5f5',
                       color: !useJobId ? 'white' : '#333'
                     }}
-                    onClick={() => setUseJobId(false)}
+                    onClick={() => {
+                      setUseJobId(false);
+                      setSelectedJob(null);
+                      // 加载自定义筛选历史记录
+                      fetchHistory(null, true);
+                      setShowHistory(true);  // 切换到自定义描述时显示历史记录
+                      setResults([]);  // 清空新结果
+                      setError('');
+                      setStickyTitle(null);  // 清除粘性标题
+                      setExpandedItems({});  // 收起所有展开项
+                    }}
                   >
                     自定义描述
                   </button>
@@ -485,24 +638,50 @@ const Screening = () => {
               <div style={styles.cardHeaderRow}>
                 <h3 style={styles.cardTitle}>
                   {showHistory ? '历史记录' : '筛选结果'} 
-                  {showHistory && historyResults.length > 0 && ` (${historyResults.length})`}
+                  {showHistory && filteredHistoryResults.length > 0 && ` (${filteredHistoryResults.length}/${historyResults.length})`}
                   {!showHistory && results.length > 0 && ` (${results.length})`}
                 </h3>
-                {selectedJob && (historyResults.length > 0 || results.length > 0) && (
-                  <button
-                    style={{
-                      ...styles.historyToggle,
-                      backgroundColor: showHistory ? '#667eea' : '#f5f5f5',
-                      color: showHistory ? 'white' : '#333'
-                    }}
-                    onClick={() => setShowHistory(!showHistory)}
-                  >
-                    {showHistory ? '查看新结果' : '查看历史'}
-                  </button>
-                )}
+                <div style={styles.headerActions}>
+                  {showHistory && selectedHistory.length > 0 && (
+                    <button style={styles.batchDeleteButton} onClick={handleBatchDeleteHistory}>
+                      删除选中 ({selectedHistory.length})
+                    </button>
+                  )}
+                  {selectedJob && (historyResults.length > 0 || results.length > 0) && (
+                    <button
+                      style={{
+                        ...styles.historyToggle,
+                        backgroundColor: showHistory ? '#667eea' : '#f5f5f5',
+                        color: showHistory ? 'white' : '#333'
+                      }}
+                      onClick={() => setShowHistory(!showHistory)}
+                    >
+                      {showHistory ? '查看新结果' : '查看历史'}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
             <div style={styles.cardBody}>
+              {/* 粘性标题 - 在右侧面板内部 */}
+              {stickyTitle && (
+                <div style={styles.stickyTitleBar}>
+                  <div style={styles.stickyTitleContent}>
+                    <h3 style={styles.stickyTitle}>{stickyTitle}</h3>
+                    <button 
+                      style={styles.closeStickyButton}
+                      onClick={() => {
+                        setStickyTitle(null);
+                        // 同时收起所有展开的项
+                        setExpandedItems({});
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
+              
               {/* 使用函数式条件渲染，避免嵌套三元运算符 */}
               {(() => {
                 // 筛选进行中
@@ -525,17 +704,70 @@ const Screening = () => {
                   }
                   return (
                     <div style={styles.resultsList}>
-                      {historyResults.map((result, index) => {
+                      {/* 显示筛选方式提示 */}
+                      {historyResults.length > 0 && (
+                        <div style={styles.filterContainer}>
+                          <span style={styles.filterLabel}>
+                            当前筛选方式: {useJobId ? '选择岗位' : '自定义描述'}
+                          </span>
+                          <span style={styles.filterCount}>
+                            {filteredHistoryResults.length}/{historyResults.length} 条记录
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* 全选功能 */}
+                      {filteredHistoryResults.length > 0 && (
+                        <div style={styles.selectAllContainer}>
+                          <div 
+                            style={styles.selectAllLabel} 
+                            onClick={handleSelectAllHistory}
+                          >
+                            <div
+                              style={{
+                                ...styles.customCheckbox,
+                                ...(selectAllHistory ? styles.customCheckboxChecked : {})
+                              }}
+                            >
+                              {selectAllHistory && '✓'}
+                            </div>
+                            全选
+                          </div>
+                        </div>
+                      )}
+                      
+                      {filteredHistoryResults.map((result, index) => {
                         const isExpanded = expandedItems[`history-${result.result_id}`] || false;
                         return (
                           <div 
                             key={`history-${result.result_id}`} 
-                            style={isExpanded ? styles.resultItemExpanded : styles.resultItem}
+                            style={{
+                              ...(isExpanded ? styles.resultItemExpanded : styles.resultItem),
+                              ...(selectedHistory.includes(result.result_id) ? styles.resultItemSelected : {})
+                            }}
                           >
                             <div
-                              style={{ ...(isExpanded ? styles.resultHeaderSticky : styles.resultHeader), cursor: 'pointer' }}
-                              onClick={() => toggleExpand(`history-${result.result_id}`)}
+                              style={{ 
+                                ...(isExpanded ? styles.resultHeaderSticky : styles.resultHeader), 
+                                cursor: 'pointer',
+                                display: isExpanded && stickyTitle === (result.filename || '未知文件名') ? 'none' : 'flex'
+                              }}
+                              onClick={() => toggleExpand(`history-${result.result_id}`, result.filename || '未知文件名')}
                             >
+                              {/* 复选框 */}
+                              <div
+                                style={{
+                                  ...styles.customCheckbox,
+                                  ...(selectedHistory.includes(result.result_id) ? styles.customCheckboxChecked : {})
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectHistory(result.result_id);
+                                }}
+                              >
+                                {selectedHistory.includes(result.result_id) && '✓'}
+                              </div>
+                              
                               <div style={styles.resultRank}>
                                 <span style={styles.rankNumber}>#{index + 1}</span>
                               </div>
@@ -573,10 +805,10 @@ const Screening = () => {
                                     AI 评估
                                     <span style={styles.scoreHint}>（整体评分见下方评估内容）</span>
                                   </h4>
-                                  <button
-                                    style={styles.collapseButton}
-                                    onClick={() => toggleExpand(`history-${result.result_id}`)}
-                                  >
+                                <button
+                                  style={styles.collapseButton}
+                                  onClick={() => toggleExpand(`history-${result.result_id}`, result.filename || '未知文件名')}
+                                >
                                     ▲ 收起
                                   </button>
                                 </div>
@@ -623,8 +855,12 @@ const Screening = () => {
                           style={isExpanded ? styles.resultItemExpanded : styles.resultItem}
                         >
                           <div
-                            style={{ ...(isExpanded ? styles.resultHeaderSticky : styles.resultHeader), cursor: 'pointer' }}
-                            onClick={() => toggleExpand(result.resume_id)}
+                            style={{ 
+                              ...(isExpanded ? styles.resultHeaderSticky : styles.resultHeader), 
+                              cursor: 'pointer',
+                              display: isExpanded && stickyTitle === (result.filename || '未知文件名') ? 'none' : 'flex'
+                            }}
+                            onClick={() => toggleExpand(result.resume_id, result.filename || '未知文件名')}
                           >
                             <div style={styles.resultRank}>
                               <span style={styles.rankNumber}>#{index + 1}</span>
@@ -669,7 +905,7 @@ const Screening = () => {
                                 </h4>
                                 <button
                                   style={styles.collapseButton}
-                                  onClick={() => toggleExpand(result.resume_id)}
+                                  onClick={() => toggleExpand(result.resume_id, result.filename || '未知文件名')}
                                 >
                                   ▲ 收起
                                 </button>
@@ -759,6 +995,8 @@ const styles = {
   rightPanel: {
     display: 'flex',
     flexDirection: 'column',
+    maxHeight: 'calc(100vh - 160px)',  // 确保有足够的滚动空间
+    overflow: 'hidden',
   },
   card: {
     backgroundColor: 'white',
@@ -776,6 +1014,40 @@ const styles = {
     maxHeight: 'calc(100vh - 120px)',
     overflowY: 'auto',
     zIndex: 10,
+  },
+  stickyTitleBar: {
+    position: 'sticky',
+    top: '-24px',  // 考虑到卡片主体的padding
+    backgroundColor: 'white',
+    borderBottom: '2px solid #667eea',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    zIndex: 10,
+    padding: '12px 20px',
+    margin: '-24px -24px 16px -24px',  // 抵消卡片的padding
+  },
+  stickyTitleContent: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    maxWidth: '1400px',
+    margin: '0 auto',
+  },
+  stickyTitle: {
+    fontSize: '18px',
+    fontWeight: 'bold',
+    color: '#333',
+    margin: 0,
+  },
+  closeStickyButton: {
+    backgroundColor: '#e74c3c',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    padding: '6px 12px',
+    transition: 'backgroundColor 0.2s',
   },
   cardHeader: {
     padding: '20px 24px',
@@ -795,6 +1067,88 @@ const styles = {
     fontWeight: '500',
     transition: 'all 0.2s',
   },
+  headerActions: {
+    display: 'flex',
+    gap: '12px',
+    alignItems: 'center',
+  },
+  batchDeleteButton: {
+    padding: '6px 12px',
+    backgroundColor: '#e74c3c',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: '500',
+    transition: 'backgroundColor 0.2s',
+  },
+  filterContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    marginBottom: '16px',
+    padding: '12px 20px',
+    backgroundColor: '#f5f5f5',
+    borderRadius: '8px',
+  },
+  filterLabel: {
+    fontSize: '14px',
+    fontWeight: '500',
+    color: '#666',
+    whiteSpace: 'nowrap',
+  },
+  filterSelect: {
+    padding: '6px 12px',
+    border: '1px solid #ddd',
+    borderRadius: '4px',
+    fontSize: '13px',
+    backgroundColor: 'white',
+    cursor: 'pointer',
+  },
+  filterCount: {
+    fontSize: '13px',
+    color: '#999',
+    marginLeft: 'auto',
+  },
+  selectAllContainer: {
+    marginBottom: '16px',
+    padding: '12px 20px',
+    backgroundColor: '#f5f5f5',
+    borderRadius: '8px',
+  },
+  selectAllLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '14px',
+    color: '#666',
+    cursor: 'pointer',
+    fontWeight: '500',
+  },
+  customCheckbox: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '16px',
+    height: '16px',
+    borderRadius: '3px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    transition: 'all 0.2s',
+    border: '1px solid #d0d0d0',
+    backgroundColor: 'white',
+    flexShrink: 0,
+  },
+  customCheckboxChecked: {
+    backgroundColor: '#667eea',
+    color: 'white',
+    borderColor: '#667eea',
+  },
+  resultItemSelected: {
+    backgroundColor: '#f0f7ff',
+    borderColor: '#667eea',
+  },
   cardTitle: {
     fontSize: '18px',
     fontWeight: 'bold',
@@ -803,6 +1157,9 @@ const styles = {
   },
   cardBody: {
     padding: '24px',
+    maxHeight: 'calc(100vh - 240px)',  // 设置最大高度以启用滚动
+    overflowY: 'auto',
+    position: 'relative',
   },
   formGroup: {
     marginBottom: '20px',

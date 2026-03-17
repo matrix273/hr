@@ -6,6 +6,7 @@ const Sidebar = ({ activeItem, onItemClick }) => {
     { id: 'list', icon: '📋', label: '简历管理' },
     { id: 'jobs', icon: '💼', label: '岗位管理' },
     { id: 'screening', icon: '🔍', label: '简历筛选' },
+    { id: 'users', icon: '👥', label: '用户管理' },
     { id: 'analysis', icon: '📊', label: '数据分析' },
   ];
 

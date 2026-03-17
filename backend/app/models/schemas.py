@@ -131,3 +131,8 @@ class JobOperationResponse(BaseModel):
     success: bool
     message: str
     job_id: Optional[str] = None
+
+
+class BatchDeleteRequest(BaseModel):
+    """批量删除请求"""
+    result_ids: list[str]

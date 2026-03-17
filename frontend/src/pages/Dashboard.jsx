@@ -4,6 +4,7 @@ import ResumeUpload from './ResumeUpload';
 import ResumeList from '../components/ResumeList';
 import JobManagement from './JobManagement';
 import Screening from './Screening';
+import UserManagement from './UserManagement';
 import Sidebar from '../components/Sidebar';
 
 const Dashboard = () => {
@@ -66,6 +67,10 @@ const Dashboard = () => {
 
           {activeTab === 'screening' && (
             <Screening />
+          )}
+
+          {activeTab === 'users' && (
+            <UserManagement />
           )}
 
           {activeTab === 'analysis' && (
