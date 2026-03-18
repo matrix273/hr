@@ -17,11 +17,14 @@ celery_app = Celery(
     backend=CELERY_RESULT_BACKEND,
 )
 from app.core.system import ResumeScreeningSystem
-from app.utils.logger import logger
+from app.utils.celery_logger import get_celery_logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import Resume
 from app.database import AsyncSessionLocal
+
+# 获取 Celery 专用的日志记录器
+logger = get_celery_logger("celery.tasks")
 
 @celery_app.task(name="process_resume_embedding", bind=True, max_retries=3)
 def process_resume_embedding(self, resume_id: str, resume_text: str) -> dict:

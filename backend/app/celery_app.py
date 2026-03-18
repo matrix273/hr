@@ -8,6 +8,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.config import CELERY_BROKER_URL, CELERY_RESULT_BACKEND
+from app.utils.logger import setup_logger
+
+# 初始化日志
+setup_logger(log_level="INFO", log_file="logs/celery.log")
 
 # 创建 Celery 应用
 celery_app = Celery(
@@ -29,4 +33,7 @@ celery_app.conf.update(
     task_soft_time_limit=25 * 60,  # 25 分钟软超时
     worker_prefetch_multiplier=1,  # 每个 worker 只预取一个任务
     worker_concurrency=4,  # 并发数
+    # 配置 Celery 使用自定义日志
+    worker_log_format="%(message)s",
+    worker_task_log_format="%(message)s",
 )
