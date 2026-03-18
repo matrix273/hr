@@ -36,23 +36,26 @@ const Dashboard = () => {
   };
 
   return (
-    <div style={styles.container}>
-      <nav style={styles.navbar}>
-        <div style={styles.navContent}>
-          <h1 style={styles.logo}>AI 简历筛选系统</h1>
-          <div style={styles.navItems}>
-            <span style={styles.userInfo}>欢迎, {user.username || '用户'}</span>
-            <button style={styles.logoutButton} onClick={handleLogout}>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <nav className="bg-white shadow-sm px-8 py-4 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto w-full flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-indigo-500 m-0">AI 简历筛选系统</h1>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-600">欢迎, {user.username || '用户'}</span>
+            <button 
+              className="px-4 py-2 bg-red-500 text-white border-none rounded-md cursor-pointer text-sm font-bold transition-colors duration-200 hover:bg-red-600"
+              onClick={handleLogout}
+            >
               退出登录
             </button>
           </div>
         </div>
       </nav>
 
-      <div style={styles.mainContent}>
+      <div className="flex flex-1">
         <Sidebar activeItem={activeTab} onItemClick={handleSidebarClick} />
 
-        <main style={styles.main}>
+        <main className="flex-1 p-8 overflow-y-auto">
           {activeTab === 'upload' && (
             <ResumeUpload onUploadSuccess={handleUploadSuccess} />
           )}
@@ -74,10 +77,10 @@ const Dashboard = () => {
           )}
 
           {activeTab === 'analysis' && (
-            <div style={styles.placeholder}>
-              <div style={styles.placeholderIcon}>📊</div>
-              <h3 style={styles.placeholderTitle}>数据分析</h3>
-              <p style={styles.placeholderText}>功能开发中...</p>
+            <div className="bg-white rounded-xl p-16 text-center shadow-sm">
+              <div className="text-6xl mb-6">📊</div>
+              <h3 className="text-2xl font-bold text-gray-800 mb-3">数据分析</h3>
+              <p className="text-base text-gray-500">功能开发中...</p>
             </div>
           )}
         </main>
@@ -86,85 +89,6 @@ const Dashboard = () => {
   );
 };
 
-const styles = {
-  container: {
-    minHeight: '100vh',
-    backgroundColor: '#f5f5f5',
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  navbar: {
-    backgroundColor: 'white',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    padding: '16px 32px',
-    position: 'sticky',
-    top: 0,
-    zIndex: 100,
-  },
-  navContent: {
-    maxWidth: '1400px',
-    margin: '0 auto',
-    width: '100%',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  logo: {
-    fontSize: '24px',
-    fontWeight: 'bold',
-    color: '#667eea',
-    margin: 0,
-  },
-  navItems: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '16px',
-  },
-  userInfo: {
-    fontSize: '14px',
-    color: '#666',
-  },
-  logoutButton: {
-    padding: '8px 16px',
-    backgroundColor: '#e74c3c',
-    color: 'white',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 'bold',
-    transition: 'backgroundColor 0.2s',
-  },
-  mainContent: {
-    display: 'flex',
-    flex: 1,
-  },
-  main: {
-    flex: 1,
-    padding: '32px',
-    overflowY: 'auto',
-  },
-  placeholder: {
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    padding: '64px 32px',
-    textAlign: 'center',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-  },
-  placeholderIcon: {
-    fontSize: '64px',
-    marginBottom: '24px',
-  },
-  placeholderTitle: {
-    fontSize: '24px',
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: '12px',
-  },
-  placeholderText: {
-    fontSize: '16px',
-    color: '#999',
-  },
-};
+
 
 export default Dashboard;

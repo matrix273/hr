@@ -43,8 +43,10 @@ class Resume(Base):
     file_size = Column(Integer, nullable=False)
     resume_text = Column(Text, nullable=False)
     user_id = Column(String(50), nullable=False)
+    job_id = Column(String(50), nullable=True, comment="关联的岗位ID")
     embedding_status = Column(String(20), default="pending", comment="embedding 处理状态: pending, processing, completed, failed")
     embedding_error = Column(Text, comment="embedding 处理错误信息")
+    is_screened = Column(Boolean, default=False, comment="是否已被筛选过")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -55,6 +57,7 @@ class Resume(Base):
             "filename": self.original_filename,
             "size": self.file_size,
             "resume_text": self.resume_text,
+            "job_id": self.job_id,
             "embedding_status": self.embedding_status,
             "embedding_error": self.embedding_error,
             "created_at": int(self.created_at.timestamp()) if self.created_at else None,

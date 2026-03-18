@@ -140,12 +140,12 @@ const UserManagement = () => {
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h2 style={styles.title}>用户管理</h2>
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-gray-800 m-0">用户管理</h2>
         {shouldShowElement(Permission.USER_CREATE) && (
           <button 
-            style={getButtonStyle(Permission.USER_CREATE, styles.createButton)}
+            className="px-5 py-2.5 bg-indigo-500 text-white border-none rounded-md text-sm font-medium cursor-pointer hover:opacity-90 hover:translate-y-px transition-all"
             onClick={handleCreate}
             disabled={isButtonDisabled(Permission.USER_CREATE)}
             title={getPermissionHint(Permission.USER_CREATE)}
@@ -155,47 +155,47 @@ const UserManagement = () => {
         )}
       </div>
 
-      {error && <div style={styles.error}>{error}</div>}
+      {error && <div className="px-3 py-3 bg-red-50 text-red-700 rounded-md mb-4">{error}</div>}
 
       {loading ? (
-        <div style={styles.loading}>加载中...</div>
+        <div className="text-center py-12 text-gray-500">加载中...</div>
       ) : (
-        <div style={styles.tableContainer}>
-          <table style={styles.table} className="user-management-table">
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <table className="w-full border-collapse user-management-table">
             <thead>
               <tr>
-                <th style={styles.th}>用户名</th>
-                <th style={styles.th}>姓名</th>
-                <th style={styles.th}>邮箱</th>
-                <th style={styles.th}>角色</th>
-                <th style={styles.th}>状态</th>
-                <th style={styles.th}>创建时间</th>
-                <th style={styles.th}>操作</th>
+                <th className="px-4 py-4 text-left bg-gray-50 border-b-2 border-gray-200 font-bold text-gray-800 text-sm">用户名</th>
+                <th className="px-4 py-4 text-left bg-gray-50 border-b-2 border-gray-200 font-bold text-gray-800 text-sm">姓名</th>
+                <th className="px-4 py-4 text-left bg-gray-50 border-b-2 border-gray-200 font-bold text-gray-800 text-sm">邮箱</th>
+                <th className="px-4 py-4 text-left bg-gray-50 border-b-2 border-gray-200 font-bold text-gray-800 text-sm">角色</th>
+                <th className="px-4 py-4 text-left bg-gray-50 border-b-2 border-gray-200 font-bold text-gray-800 text-sm">状态</th>
+                <th className="px-4 py-4 text-left bg-gray-50 border-b-2 border-gray-200 font-bold text-gray-800 text-sm">创建时间</th>
+                <th className="px-4 py-4 text-left bg-gray-50 border-b-2 border-gray-200 font-bold text-gray-800 text-sm">操作</th>
               </tr>
             </thead>
             <tbody>
               {users.map((user) => (
-                <tr key={user.id}>
-                  <td style={styles.td}>{user.username}</td>
-                  <td style={styles.td}>{user.full_name || '-'}</td>
-                  <td style={styles.td}>{user.email}</td>
-                  <td style={styles.td}>
-                    <span style={styles.roleTag}>{getRoleLabel(user.role)}</span>
+                <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-4 border-b border-gray-200 text-sm text-gray-600">{user.username}</td>
+                  <td className="px-4 py-4 border-b border-gray-200 text-sm text-gray-600">{user.full_name || '-'}</td>
+                  <td className="px-4 py-4 border-b border-gray-200 text-sm text-gray-600">{user.email}</td>
+                  <td className="px-4 py-4 border-b border-gray-200 text-sm">
+                    <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">{getRoleLabel(user.role)}</span>
                   </td>
-                  <td style={styles.td}>
-                    <span style={{
-                      ...styles.statusTag,
-                      backgroundColor: user.is_active ? '#e8f5e9' : '#ffebee',
-                      color: user.is_active ? '#2e7d32' : '#c62828'
-                    }}>
+                  <td className="px-4 py-4 border-b border-gray-200 text-sm">
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      user.is_active 
+                        ? 'bg-green-50 text-green-700' 
+                        : 'bg-red-50 text-red-700'
+                    }`}>
                       {user.is_active ? '启用' : '禁用'}
                     </span>
                   </td>
-                  <td style={styles.td}>{formatDate(user.created_at)}</td>
-                  <td style={styles.td}>
+                  <td className="px-4 py-4 border-b border-gray-200 text-sm text-gray-600">{formatDate(user.created_at)}</td>
+                  <td className="px-4 py-4 border-b border-gray-200 text-sm">
                     {shouldShowElement(Permission.USER_UPDATE) && (
                       <button
-                        style={getButtonStyle(Permission.USER_UPDATE, styles.actionButton)}
+                        className="px-3 py-1.5 bg-indigo-500 text-white border-none rounded cursor-pointer text-xs mr-2 hover:opacity-90 transition-all"
                         onClick={() => handleEdit(user)}
                         disabled={isButtonDisabled(Permission.USER_UPDATE)}
                         title={getPermissionHint(Permission.USER_UPDATE)}
@@ -205,7 +205,7 @@ const UserManagement = () => {
                     )}
                     {shouldShowElement(Permission.USER_DELETE) && (
                       <button
-                        style={getButtonStyle(Permission.USER_DELETE, {...styles.actionButton, ...styles.deleteButton})}
+                        className="px-3 py-1.5 bg-red-500 text-white border-none rounded cursor-pointer text-xs hover:opacity-90 transition-all"
                         onClick={() => handleDelete(user)}
                         disabled={isButtonDisabled(Permission.USER_DELETE)}
                         title={getPermissionHint(Permission.USER_DELETE)}
@@ -219,61 +219,61 @@ const UserManagement = () => {
             </tbody>
           </table>
           {users.length === 0 && (
-            <div style={styles.empty}>暂无用户数据</div>
+            <div className="text-center py-12 text-gray-500 text-base">暂无用户数据</div>
           )}
         </div>
       )}
 
       {/* 模态框 */}
       {showModal && (
-        <div style={styles.modalOverlay} onClick={() => setShowModal(false)}>
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-xl w-600 max-w-11/12 max-h-90vh overflow-auto shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center px-6 py-5 border-b border-gray-200 bg-gray-50">
+              <h3 className="text-xl font-bold text-gray-800 m-0">
                 {modalMode === 'create' ? '新建用户' : '编辑用户'}
               </h3>
-              <button style={styles.closeButton} onClick={() => setShowModal(false)}>
+              <button className="bg-transparent border-none text-2xl text-gray-500 cursor-pointer p-1 transition-colors hover:text-gray-700" onClick={() => setShowModal(false)}>
                 ✕
               </button>
             </div>
             
             {/* 添加说明文字 */}
-            <div style={styles.modalDescription}>
+            <div className="px-6 py-4 bg-blue-50 border-b border-gray-200">
               {modalMode === 'create' ? (
-                <p style={styles.descriptionText}>
-                  创建新用户账户。带 <span style={styles.required}>*</span> 的字段为必填项。
+                <p className="text-sm text-blue-700 m-0 leading-normal">
+                  创建新用户账户。带 <span className="text-red-500">*</span> 的字段为必填项。
                 </p>
               ) : (
-                <p style={styles.descriptionText}>
+                <p className="text-sm text-blue-700 m-0 leading-normal">
                   修改用户信息。密码留空则不修改。
                 </p>
               )}
             </div>
             
-            <form onSubmit={handleSubmit} style={styles.form}>
+            <form onSubmit={handleSubmit} className="p-6">
               {modalMode === 'create' && (
                 <>
-                  <div style={styles.formRow}>
-                    <div style={styles.formGroup}>
-                      <label style={styles.label}>
-                        用户名 <span style={styles.required}>*</span>
+                  <div className="grid grid-cols-2 gap-4 mb-0">
+                    <div className="mb-5">
+                      <label className="block text-sm font-semibold text-gray-800 mb-2">
+                        用户名 <span className="text-red-500 ml-0.5">*</span>
                       </label>
                       <input
                         type="text"
-                        style={styles.input}
+                        className="w-full px-3 py-2.5 border border-gray-300 rounded-md text-sm outline-none transition-all focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                         value={formData.username}
                         onChange={(e) => setFormData({...formData, username: e.target.value})}
                         placeholder="请输入用户名"
                         required
                       />
                     </div>
-                    <div style={styles.formGroup}>
-                      <label style={styles.label}>
-                        密码 <span style={styles.required}>*</span>
+                    <div className="mb-5">
+                      <label className="block text-sm font-semibold text-gray-800 mb-2">
+                        密码 <span className="text-red-500 ml-0.5">*</span>
                       </label>
                       <input
                         type="password"
-                        style={styles.input}
+                        className="w-full px-3 py-2.5 border border-gray-300 rounded-md text-sm outline-none transition-all focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                         value={formData.password}
                         onChange={(e) => setFormData({...formData, password: e.target.value})}
                         placeholder="请输入密码"
@@ -283,25 +283,25 @@ const UserManagement = () => {
                   </div>
                 </>
               )}
-              <div style={styles.formRow}>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>
-                    邮箱 <span style={styles.required}>*</span>
+              <div className="grid grid-cols-2 gap-4 mb-0">
+                <div className="mb-5">
+                  <label className="block text-sm font-semibold text-gray-800 mb-2">
+                    邮箱 <span className="text-red-500 ml-0.5">*</span>
                   </label>
                   <input
                     type="email"
-                    style={styles.input}
+                    className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm text-gray-800 outline-none transition-all focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
                     placeholder="请输入邮箱地址"
                     required
                   />
                 </div>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>姓名</label>
+                <div className="mb-5">
+                  <label className="block text-sm font-semibold text-gray-800 mb-2">姓名</label>
                   <input
                     type="text"
-                    style={styles.input}
+                    className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm text-gray-800 outline-none transition-all focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     value={formData.full_name}
                     onChange={(e) => setFormData({...formData, full_name: e.target.value})}
                     placeholder="请输入真实姓名"
@@ -309,25 +309,25 @@ const UserManagement = () => {
                 </div>
               </div>
               {modalMode === 'edit' && (
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>新密码</label>
+                <div className="mb-5">
+                  <label className="block text-sm font-semibold text-gray-800 mb-2">新密码</label>
                   <input
                     type="password"
-                    style={styles.input}
+                    className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm text-gray-800 outline-none transition-all focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     value={formData.password}
                     onChange={(e) => setFormData({...formData, password: e.target.value})}
                     placeholder="留空则不修改密码"
                   />
-                  <span style={styles.hint}>留空则保持原密码不变</span>
+                  <span className="block text-xs text-gray-500 mt-1 italic">留空则保持原密码不变</span>
                 </div>
               )}
-              <div style={styles.formRow}>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>
-                    角色 <span style={styles.required}>*</span>
+              <div className="grid grid-cols-2 gap-4 mb-0">
+                <div className="mb-5">
+                  <label className="block text-sm font-semibold text-gray-800 mb-2">
+                    角色 <span className="text-red-500 ml-0.5">*</span>
                   </label>
                   <select
-                    style={styles.select}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-md text-sm bg-white text-gray-800 cursor-pointer outline-none transition-all focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     value={formData.role}
                     onChange={(e) => setFormData({...formData, role: e.target.value})}
                     required
@@ -339,61 +339,61 @@ const UserManagement = () => {
                       </option>
                     ))}
                   </select>
-                  <span style={styles.hint}>
+                  <span className="block text-xs text-gray-500 mt-1 italic">
                     {modalMode === 'edit' && getCurrentUser()?.role !== 'admin' 
                       ? '非管理员不能修改角色' 
                       : '不同角色拥有不同的权限'}
                   </span>
                 </div>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>状态</label>
-                  <div style={styles.checkboxContainer}>
-                    <label style={styles.checkboxLabel}>
+                <div className="mb-5">
+                  <label className="block text-sm font-semibold text-gray-800 mb-2">状态</label>
+                  <div className="flex items-center mt-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        style={styles.checkbox}
+                        className="w-4.5 h-4.5 cursor-pointer"
                         checked={formData.is_active}
                         onChange={(e) => setFormData({...formData, is_active: e.target.checked})}
                       />
-                      <span style={styles.checkboxText}>
+                      <span className="text-sm text-gray-800 font-medium">
                         {formData.is_active ? '已启用' : '已禁用'}
                       </span>
                     </label>
                   </div>
-                  <span style={styles.hint}>禁用后用户将无法登录系统</span>
+                  <span className="block text-xs text-gray-500 mt-1 italic">禁用后用户将无法登录系统</span>
                 </div>
               </div>
               
               {/* 角色说明 */}
-              <div style={styles.roleDescription}>
-                <h4 style={styles.roleTitle}>角色权限说明</h4>
-                <div style={styles.roleList}>
-                  <div style={styles.roleItem}>
+              <div className="mt-5 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <h4 className="text-sm font-bold text-gray-800 mb-3 m-0">角色权限说明</h4>
+                <div className="flex flex-col gap-2">
+                  <div className="text-xs text-gray-600 leading-normal">
                     <strong>管理员：</strong>拥有所有权限，可管理用户和系统
                   </div>
-                  <div style={styles.roleItem}>
+                  <div className="text-xs text-gray-600 leading-normal">
                     <strong>经理：</strong>可管理岗位和筛选，可查看和更新用户信息
                   </div>
-                  <div style={styles.roleItem}>
+                  <div className="text-xs text-gray-600 leading-normal">
                     <strong>人力资源：</strong>可管理简历、岗位和筛选，可查看用户
                   </div>
-                  <div style={styles.roleItem}>
+                  <div className="text-xs text-gray-600 leading-normal">
                     <strong>招聘专员：</strong>可上传简历和执行筛选
                   </div>
-                  <div style={styles.roleItem}>
+                  <div className="text-xs text-gray-600 leading-normal">
                     <strong>面试官：</strong>仅可查看简历和岗位信息
                   </div>
-                  <div style={styles.roleItem}>
+                  <div className="text-xs text-gray-600 leading-normal">
                     <strong>普通用户：</strong>仅可浏览简历和岗位
                   </div>
                 </div>
               </div>
               
-              <div style={styles.modalActions}>
-                <button type="button" style={styles.cancelButton} onClick={() => setShowModal(false)}>
+              <div className="flex gap-3 justify-end mt-6 pt-5 border-t border-gray-200">
+                <button type="button" className="px-5 py-2.5 bg-gray-100 text-gray-600 border-none rounded-md text-sm cursor-pointer transition-all hover:bg-gray-200" onClick={() => setShowModal(false)}>
                   取消
                 </button>
-                <button type="submit" style={styles.submitButton}>
+                <button type="submit" className="px-5 py-2.5 bg-indigo-500 text-white border-none rounded-md text-sm cursor-pointer font-medium transition-all hover:bg-indigo-600">
                   {modalMode === 'create' ? '创建用户' : '保存修改'}
                 </button>
               </div>

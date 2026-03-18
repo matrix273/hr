@@ -33,6 +33,7 @@ class BatchDeleteRequest(BaseModel):
 @router.post("/upload", response_model=ResumeUploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_resume(
     file: UploadFile = File(...),
+    job_id: Optional[str] = Body(None),
     current_user: dict = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -104,13 +105,26 @@ async def upload_resume(
             f.write(file_bytes)
         logger.info(f"PDF 文件已保存: {file_path}")
 
+        # 验证岗位是否存在（如果提供了岗位ID）
+        if job_id:
+            result = await db.execute(
+                select(Job).where(Job.job_id == job_id)
+            )
+            job = result.scalar_one_or_none()
+            if not job:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="指定的岗位不存在"
+                )
+
         # 保存到数据库
         resume = Resume(
             resume_id=resume_id,
             original_filename=file.filename,
             file_size=len(file_bytes),
             resume_text=resume_text,
-            user_id=user.id
+            user_id=user.id,
+            job_id=job_id
         )
         db.add(resume)
         await db.commit()

@@ -1,6 +1,86 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import {
+  Box,
+  Button,
+  Typography,
+  Card,
+  CardContent,
+  Container,
+  Grid,
+  Modal,
+  TextField,
+  Stack,
+  Paper,
+  IconButton
+} from '@mui/material';
+import { styled } from '@mui/material/styles';
+import {
+  Search as SearchIcon,
+  SmartToy as AIIcon,
+  Bolt as BoltIcon,
+  Security as SecurityIcon,
+  Business as BusinessIcon,
+  People as PeopleIcon,
+  Work as WorkIcon,
+  ContactMail as ContactIcon
+} from '@mui/icons-material';
+
+// 样式化组件
+const GradientButton = styled(Button)(({ theme }) => ({
+  background: 'linear-gradient(45deg, #4f46e5 30%, #7c3aed 90%)',
+  color: 'white',
+  fontWeight: 'bold',
+  padding: '12px 32px',
+  borderRadius: '8px',
+  textTransform: 'none',
+  fontSize: '16px',
+  '&:hover': {
+    background: 'linear-gradient(45deg, #4338ca 30%, #6d28d9 90%)',
+    transform: 'translateY(-2px)',
+    boxShadow: '0 8px 25px rgba(99, 102, 241, 0.3)',
+  },
+  transition: 'all 0.3s ease',
+}));
+
+const OutlineButton = styled(Button)(({ theme }) => ({
+  border: '2px solid white',
+  color: 'white',
+  fontWeight: 'bold',
+  padding: '10px 28px',
+  borderRadius: '8px',
+  textTransform: 'none',
+  fontSize: '16px',
+  '&:hover': {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    border: '2px solid white',
+    transform: 'translateY(-2px)',
+  },
+  transition: 'all 0.3s ease',
+}));
+
+const FeatureCard = styled(Card)(({ theme }) => ({
+  height: '100%',
+  borderRadius: '16px',
+  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    transform: 'translateY(-8px)',
+    boxShadow: '0 12px 40px rgba(99, 102, 241, 0.15)',
+  },
+}));
+
+const HeroSection = styled(Box)(({ theme }) => ({
+  background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+  color: 'white',
+  padding: '120px 0',
+  textAlign: 'center',
+}));
+
+const Section = styled(Box)(({ theme }) => ({
+  padding: '80px 0',
+}));
 
 const Home = () => {
   const navigate = useNavigate();
@@ -64,459 +144,324 @@ const Home = () => {
   };
 
   return (
-    <div style={styles.container}>
+    <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
       {/* Hero Section */}
-      <section style={styles.hero}>
-        <div style={styles.heroContent}>
-          <h1 style={styles.title}>
+      <HeroSection>
+        <Container maxWidth="lg">
+          <Typography variant="h1" sx={{ 
+            fontSize: { xs: '2.5rem', md: '3.5rem' }, 
+            fontWeight: 'bold', 
+            mb: 3 
+          }}>
             AI 简历筛选系统
-          </h1>
-          <p style={styles.subtitle}>
+          </Typography>
+          <Typography variant="h5" sx={{ 
+            mb: 6, 
+            opacity: 0.9, 
+            fontSize: { xs: '1.2rem', md: '1.5rem' }
+          }}>
             基于大语言模型的智能简历筛选解决方案
-          </p>
-          <div style={styles.ctaButtons}>
-            <button style={styles.primaryButton} onClick={() => window.location.href = '/login'}>
-              登录
-            </button>
-            <button style={styles.secondaryButton} onClick={() => navigate('/help')}>
+          </Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} justifyContent="center">
+            <GradientButton 
+              startIcon={<SearchIcon />}
+              onClick={() => window.location.href = '/login'}
+              size="large"
+            >
+              立即登录
+            </GradientButton>
+            <OutlineButton 
+              startIcon={<ContactIcon />}
+              onClick={() => navigate('/help')}
+              size="large"
+            >
               了解更多
-            </button>
-          </div>
-        </div>
-      </section>
+            </OutlineButton>
+          </Stack>
+        </Container>
+      </HeroSection>
 
       {/* Features Section */}
-      <section style={styles.features}>
-        <h2 style={styles.sectionTitle}>核心功能</h2>
-        <div style={styles.featureGrid}>
-          <div style={styles.featureCard}>
-            <div style={styles.featureIcon}>🔍</div>
-            <h3 style={styles.featureTitle}>智能匹配</h3>
-            <p style={styles.featureDescription}>
-              基于向量检索和重排序模型，精准匹配职位要求
-            </p>
-          </div>
-          <div style={styles.featureCard}>
-            <div style={styles.featureIcon}>🤖</div>
-            <h3 style={styles.featureTitle}>AI 评估</h3>
-            <p style={styles.featureDescription}>
-              利用大语言模型进行深度简历分析和评估
-            </p>
-          </div>
-          <div style={styles.featureCard}>
-            <div style={styles.featureIcon}>⚡</div>
-            <h3 style={styles.featureTitle}>高效处理</h3>
-            <p style={styles.featureDescription}>
-              支持批量处理，快速筛选大量简历
-            </p>
-          </div>
-          <div style={styles.featureCard}>
-            <div style={styles.featureIcon}>🔒</div>
-            <h3 style={styles.featureTitle}>安全可靠</h3>
-            <p style={styles.featureDescription}>
-              RBAC 权限控制，保障数据安全
-            </p>
-          </div>
-        </div>
-      </section>
+      <Section>
+        <Container maxWidth="lg">
+          <Typography variant="h3" align="center" sx={{ mb: 8, fontWeight: 'bold', color: 'text.primary' }}>
+            核心功能
+          </Typography>
+          <Grid container spacing={4} justifyContent="center" alignItems="stretch">
+            <Grid item xs={12} sm={6} md={3}>
+              <FeatureCard sx={{ height: '100%' }}>
+                <CardContent sx={{ p: 4, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <SearchIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2, mx: 'auto' }} />
+                  <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
+                    智能匹配
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5, whiteSpace: 'pre-line' }}>
+                    {`基于向量检索和重排序模型
+精准匹配职位要求`}
+                  </Typography>
+                </CardContent>
+              </FeatureCard>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <FeatureCard sx={{ height: '100%' }}>
+                <CardContent sx={{ p: 4, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <AIIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2, mx: 'auto' }} />
+                  <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
+                    AI 评估
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5, whiteSpace: 'pre-line' }}>
+                    {`利用大语言模型进行
+深度简历分析和评估`}
+                  </Typography>
+                </CardContent>
+              </FeatureCard>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <FeatureCard sx={{ height: '100%' }}>
+                <CardContent sx={{ p: 4, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <BoltIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2, mx: 'auto' }} />
+                  <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
+                    高效处理
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5, whiteSpace: 'pre-line' }}>
+                    {`支持批量处理
+快速筛选大量简历`}
+                  </Typography>
+                </CardContent>
+              </FeatureCard>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <FeatureCard sx={{ height: '100%' }}>
+                <CardContent sx={{ p: 4, textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <SecurityIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2, mx: 'auto' }} />
+                  <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
+                    安全可靠
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5, whiteSpace: 'pre-line' }}>
+                    {`RBAC 权限控制
+保障数据安全`}
+                  </Typography>
+                </CardContent>
+              </FeatureCard>
+            </Grid>
+          </Grid>
+        </Container>
+      </Section>
 
       {/* Use Cases Section */}
-      <section style={styles.useCases}>
-        <h2 style={styles.sectionTitle}>应用场景</h2>
-        <div style={styles.useCaseGrid}>
-          <div style={styles.useCaseCard}>
-            <h3 style={styles.useCaseTitle}>企业招聘</h3>
-            <p style={styles.useCaseDescription}>
-              大规模简历筛选，快速找到合适候选人
-            </p>
-          </div>
-          <div style={styles.useCaseCard}>
-            <h3 style={styles.useCaseTitle}>猎头服务</h3>
-            <p style={styles.useCaseDescription}>
-              精准匹配候选人，提升推荐质量
-            </p>
-          </div>
-          <div style={styles.useCaseCard}>
-            <h3 style={styles.useCaseTitle}>HR 部门</h3>
-            <p style={styles.useCaseDescription}>
-              自动化筛选流程，减少人工工作量
-            </p>
-          </div>
-        </div>
-      </section>
+      <Section sx={{ bgcolor: 'background.paper' }}>
+        <Container maxWidth="lg">
+          <Typography variant="h3" align="center" sx={{ 
+            mb: 8, 
+            fontWeight: 'bold', 
+            color: 'text.primary',
+            fontSize: { xs: '2rem', md: '2.5rem' }
+          }}>
+            应用场景
+          </Typography>
+          <Grid container spacing={4} justifyContent="center" alignItems="stretch">
+            <Grid item xs={12} md={4}>
+              <Paper sx={{ p: 4, borderLeft: 4, borderColor: 'primary.main', height: '100%', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <BusinessIcon sx={{ fontSize: 40, color: 'primary.main', mb: 2, mx: 'auto' }} />
+                <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
+                  企业招聘
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  大规模简历筛选，快速找到合适候选人
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Paper sx={{ p: 4, borderLeft: 4, borderColor: 'primary.main', height: '100%', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <PeopleIcon sx={{ fontSize: 40, color: 'primary.main', mb: 2, mx: 'auto' }} />
+                <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
+                  猎头服务
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  精准匹配候选人，提升推荐质量
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Paper sx={{ p: 4, borderLeft: 4, borderColor: 'primary.main', height: '100%', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <WorkIcon sx={{ fontSize: 40, color: 'primary.main', mb: 2, mx: 'auto' }} />
+                <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
+                  HR 部门
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  自动化筛选流程，减少人工工作量
+                </Typography>
+              </Paper>
+            </Grid>
+          </Grid>
+        </Container>
+      </Section>
 
       {/* Technology Stack Section */}
-      <section style={styles.techStack}>
-        <h2 style={styles.sectionTitle}>技术栈</h2>
-        <div style={styles.techGrid}>
-          <div style={styles.techItem}>
-            <strong style={styles.techItemTitle}>AI 模型</strong>
-            <p style={styles.techItemText}>Qwen3-Embedding / Qwen3-Reranker</p>
-          </div>
-          <div style={styles.techItem}>
-            <strong style={styles.techItemTitle}>向量数据库</strong>
-            <p style={styles.techItemText}>Milvus</p>
-          </div>
-          <div style={styles.techItem}>
-            <strong style={styles.techItemTitle}>后端</strong>
-            <p style={styles.techItemText}>FastAPI / Python</p>
-          </div>
-          <div style={styles.techItem}>
-            <strong style={styles.techItemTitle}>前端</strong>
-            <p style={styles.techItemText}>React / Vite</p>
-          </div>
-        </div>
-      </section>
+      <Section>
+        <Container maxWidth="lg">
+          <Typography variant="h3" align="center" sx={{ 
+            mb: 8, 
+            fontWeight: 'bold', 
+            color: 'text.primary',
+            fontSize: { xs: '2rem', md: '2.5rem' }
+          }}>
+            技术栈
+          </Typography>
+          <Grid container spacing={4} justifyContent="center" alignItems="stretch">
+            <Grid item xs={12} sm={6} md={3}>
+              <Box sx={{ textAlign: 'center', p: 3, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1, color: 'text.primary' }}>
+                  AI 模型
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ color: 'grey.700' }}>
+                  Qwen3-Embedding / Qwen3-Reranker
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Box sx={{ textAlign: 'center', p: 3, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1, color: 'text.primary' }}>
+                  向量数据库
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ color: 'grey.700' }}>
+                  Milvus
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Box sx={{ textAlign: 'center', p: 3, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1, color: 'text.primary' }}>
+                  后端
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ color: 'grey.700' }}>
+                  FastAPI / Python
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Box sx={{ textAlign: 'center', p: 3, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1, color: 'text.primary' }}>
+                  前端
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ color: 'grey.700' }}>
+                  React / Vite
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
+        </Container>
+      </Section>
 
       {/* CTA Section */}
-      <section style={styles.ctaSection}>
-        <h2 style={styles.ctaTitle}>立即开始使用</h2>
-        <p style={styles.ctaDescription}>
-          注册账号，体验智能简历筛选的强大功能
-        </p>
-        <button style={styles.ctaButton} onClick={() => window.location.href = '/login'}>
-          立即登录
-        </button>
-      </section>
+      <HeroSection>
+        <Container maxWidth="md">
+          <Typography variant="h3" align="center" sx={{ mb: 3, fontWeight: 'bold' }}>
+            立即开始使用
+          </Typography>
+          <Typography variant="h6" align="center" sx={{ mb: 5, opacity: 0.9 }}>
+            注册账号，体验智能简历筛选的强大功能
+          </Typography>
+          <Box sx={{ textAlign: 'center' }}>
+            <GradientButton 
+              size="large"
+              onClick={() => window.location.href = '/login'}
+              sx={{ px: 6, py: 1.5, fontSize: '1.1rem' }}
+            >
+              立即登录
+            </GradientButton>
+          </Box>
+        </Container>
+      </HeroSection>
 
       {/* Footer */}
-      <footer style={styles.footer}>
-        <p>&copy; 2025 AI 简历筛选系统. All rights reserved.</p>
-        <p style={styles.contactLink} onClick={() => setShowContactModal(true)}>
+      <Box sx={{ bgcolor: 'grey.900', color: 'white', py: 6, textAlign: 'center' }}>
+        <Typography variant="body2" sx={{ mb: 2 }}>
+          &copy; 2025 AI 简历筛选系统. All rights reserved.
+        </Typography>
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            color: 'primary.main', 
+            cursor: 'pointer', 
+            fontWeight: 'bold',
+            '&:hover': { textDecoration: 'underline' }
+          }}
+          onClick={() => setShowContactModal(true)}
+        >
           联系我
-        </p>
-      </footer>
+        </Typography>
+      </Box>
 
       {/* 联系我对话框 */}
-      {showContactModal && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalContent}>
-            <h3 style={styles.modalTitle}>联系我</h3>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>姓名 <span style={styles.required}>*</span></label>
-              <input
-                type="text"
-                name="name"
-                value={contactForm.name}
-                onChange={handleContactChange}
-                style={styles.input}
-                placeholder="请输入您的姓名"
-              />
-            </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>邮箱 <span style={styles.required}>*</span></label>
-              <input
-                type="email"
-                name="email"
-                value={contactForm.email}
-                onChange={handleContactChange}
-                style={{
-                  ...styles.input,
-                  borderColor: emailError ? '#e74c3c' : '#ddd',
-                }}
-                placeholder="请输入您的邮箱"
-              />
-              {emailError && <span style={styles.emailError}>{emailError}</span>}
-            </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>留言 <span style={styles.required}>*</span></label>
-              <textarea
-                name="message"
-                value={contactForm.message}
-                onChange={handleContactChange}
-                style={styles.textarea}
-                placeholder="请输入您想咨询的内容..."
-                rows={4}
-              />
-            </div>
-            <div style={styles.modalButtons}>
-              <button
-                type="button"
-                style={styles.cancelButton}
+      <Modal
+        open={showContactModal}
+        onClose={() => setShowContactModal(false)}
+        sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        <Paper sx={{ p: 4, maxWidth: 400, width: '90%', mx: 'auto' }}>
+          <Typography variant="h5" align="center" sx={{ mb: 3, fontWeight: 'bold' }}>
+            联系我
+          </Typography>
+          <Stack spacing={3}>
+            <TextField
+              label="姓名"
+              name="name"
+              value={contactForm.name}
+              onChange={handleContactChange}
+              required
+              fullWidth
+              variant="outlined"
+            />
+            <TextField
+              label="邮箱"
+              name="email"
+              type="email"
+              value={contactForm.email}
+              onChange={handleContactChange}
+              error={!!emailError}
+              helperText={emailError}
+              required
+              fullWidth
+              variant="outlined"
+            />
+            <TextField
+              label="留言"
+              name="message"
+              value={contactForm.message}
+              onChange={handleContactChange}
+              required
+              multiline
+              rows={4}
+              fullWidth
+              variant="outlined"
+            />
+            <Stack direction="row" spacing={2}>
+              <Button 
+                variant="outlined" 
+                fullWidth 
                 onClick={() => setShowContactModal(false)}
+                sx={{ py: 1.5 }}
               >
                 取消
-              </button>
-              <button
-                type="button"
-                style={styles.confirmButton}
+              </Button>
+              <Button 
+                variant="contained" 
+                fullWidth 
                 onClick={handleContactSubmit}
                 disabled={contactLoading}
+                sx={{ py: 1.5 }}
               >
                 {contactLoading ? '提交中...' : '提交'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+              </Button>
+            </Stack>
+          </Stack>
+        </Paper>
+      </Modal>
+    </Box>
   );
 };
 
-const styles = {
-  container: {
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-    backgroundColor: '#f5f5f5',
-  },
-  hero: {
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    color: 'white',
-    padding: '120px 20px',
-    textAlign: 'center',
-  },
-  heroContent: {
-    maxWidth: '800px',
-    margin: '0 auto',
-  },
-  title: {
-    fontSize: '48px',
-    fontWeight: 'bold',
-    marginBottom: '20px',
-  },
-  subtitle: {
-    fontSize: '24px',
-    marginBottom: '40px',
-    opacity: 0.9,
-  },
-  ctaButtons: {
-    display: 'flex',
-    gap: '20px',
-    justifyContent: 'center',
-  },
-  primaryButton: {
-    backgroundColor: 'white',
-    color: '#667eea',
-    border: 'none',
-    padding: '15px 40px',
-    fontSize: '18px',
-    fontWeight: 'bold',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    transition: 'transform 0.2s',
-  },
-  secondaryButton: {
-    backgroundColor: 'transparent',
-    color: 'white',
-    border: '2px solid white',
-    padding: '13px 38px',
-    fontSize: '18px',
-    fontWeight: 'bold',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    transition: 'transform 0.2s',
-  },
-  features: {
-    padding: '80px 20px',
-    maxWidth: '1200px',
-    margin: '0 auto',
-  },
-  sectionTitle: {
-    fontSize: '36px',
-    textAlign: 'center',
-    marginBottom: '60px',
-    color: '#333',
-  },
-  featureGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-    gap: '30px',
-  },
-  featureCard: {
-    backgroundColor: 'white',
-    padding: '40px',
-    borderRadius: '12px',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-    textAlign: 'center',
-    transition: 'transform 0.2s',
-  },
-  featureIcon: {
-    fontSize: '48px',
-    marginBottom: '20px',
-  },
-  featureTitle: {
-    fontSize: '24px',
-    marginBottom: '15px',
-    color: '#333',
-  },
-  featureDescription: {
-    color: '#666',
-    lineHeight: '1.6',
-  },
-  useCases: {
-    backgroundColor: 'white',
-    padding: '80px 20px',
-  },
-  useCaseGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-    gap: '30px',
-    maxWidth: '1200px',
-    margin: '0 auto',
-  },
-  useCaseCard: {
-    padding: '30px',
-    borderLeft: '4px solid #667eea',
-  },
-  useCaseTitle: {
-    fontSize: '24px',
-    marginBottom: '15px',
-    color: '#333',
-  },
-  useCaseDescription: {
-    color: '#666',
-    lineHeight: '1.6',
-  },
-  techStack: {
-    padding: '80px 20px',
-    maxWidth: '1200px',
-    margin: '0 auto',
-  },
-  techGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: '30px',
-  },
-  techItem: {
-    textAlign: 'center',
-  },
-  techItemText: {
-    color: '#333',
-    fontSize: '16px',
-    marginTop: '8px',
-    fontWeight: '500',
-  },
-  techItemTitle: {
-    color: '#222',
-    fontSize: '18px',
-    fontWeight: 'bold',
-  },
-  ctaSection: {
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    color: 'white',
-    padding: '80px 20px',
-    textAlign: 'center',
-  },
-  ctaTitle: {
-    fontSize: '36px',
-    marginBottom: '20px',
-  },
-  ctaDescription: {
-    fontSize: '18px',
-    marginBottom: '40px',
-    opacity: 0.9,
-  },
-  ctaButton: {
-    backgroundColor: 'white',
-    color: '#667eea',
-    border: 'none',
-    padding: '15px 50px',
-    fontSize: '20px',
-    fontWeight: 'bold',
-    borderRadius: '8px',
-    cursor: 'pointer',
-  },
-  footer: {
-    backgroundColor: '#333',
-    color: 'white',
-    textAlign: 'center',
-    padding: '30px 20px',
-  },
-  contactLink: {
-    marginTop: '15px',
-    cursor: 'pointer',
-    color: '#667eea',
-    fontSize: '18px',
-    fontWeight: 'bold',
-  },
-  // 对话框样式
-  modalOverlay: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    padding: '30px',
-    borderRadius: '12px',
-    width: '90%',
-    maxWidth: '400px',
-    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
-  },
-  modalTitle: {
-    fontSize: '22px',
-    marginBottom: '20px',
-    textAlign: 'center',
-    color: '#333',
-  },
-  formGroup: {
-    marginBottom: '16px',
-  },
-  label: {
-    display: 'block',
-    fontSize: '14px',
-    fontWeight: 'bold',
-    color: '#555',
-    marginBottom: '6px',
-  },
-  required: {
-    color: '#e74c3c',
-  },
-  emailError: {
-    color: '#e74c3c',
-    fontSize: '12px',
-    marginTop: '4px',
-    display: 'block',
-  },
-  input: {
-    width: '100%',
-    padding: '12px',
-    border: '1px solid #ddd',
-    borderRadius: '6px',
-    fontSize: '14px',
-    boxSizing: 'border-box',
-  },
-  textarea: {
-    width: '100%',
-    padding: '12px',
-    border: '1px solid #ddd',
-    borderRadius: '6px',
-    fontSize: '14px',
-    boxSizing: 'border-box',
-    resize: 'vertical',
-    fontFamily: 'inherit',
-  },
-  modalButtons: {
-    display: 'flex',
-    gap: '12px',
-    marginTop: '20px',
-  },
-  cancelButton: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-    color: '#666',
-    border: 'none',
-    padding: '12px',
-    borderRadius: '6px',
-    fontSize: '16px',
-    cursor: 'pointer',
-  },
-  confirmButton: {
-    flex: 1,
-    backgroundColor: '#667eea',
-    color: 'white',
-    border: 'none',
-    padding: '12px',
-    borderRadius: '6px',
-    fontSize: '16px',
-    cursor: 'pointer',
-  },
-};
+
 
 export default Home;

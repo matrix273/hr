@@ -33,6 +33,8 @@ router = APIRouter(prefix="/api/screening", tags=["Screening"])
 @router.post("/screen")
 async def screen_resumes(
     request: ScreenRequest,
+    time_range: Optional[int] = 7,
+    only_unscreened: Optional[bool] = False,
     current_user: dict = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -76,9 +78,15 @@ async def screen_resumes(
                 yield f"data: {json.dumps({'type': 'error', 'message': '向量数据库不可用，请检查 Milvus 服务'})}\n\n"
                 return
 
-            # 获取搜索和 rerank 结果
+            # 获取搜索和 rerank 结果（支持时间和未评估筛选）
             query_embedding = screening_system.embedding.embed_single(request.job_description)
-            search_results = screening_system.vector_db.search(query_embedding, request.top_k)
+            search_results = await screening_system.vector_db.search(
+                query_embedding, 
+                request.top_k,
+                time_range=request.time_range,
+                only_unscreened=request.only_unscreened,
+                filter_job_id=request.filter_job_id
+            )
             
             if not search_results:
                 logger.warning("未找到匹配的简历")
@@ -149,6 +157,10 @@ async def screen_resumes(
                     user_id=user_id
                 )
                 db.add(screening_result)
+                
+                # 更新简历的筛选状态
+                resume.is_screened = True
+                
                 await db.commit()
 
                 # 构建结果
@@ -424,7 +436,13 @@ async def screen_resumes_by_job(
 
             # 获取搜索和 rerank 结果
             query_embedding = screening_system.embedding.embed_single(job_description)
-            search_results = screening_system.vector_db.search(query_embedding, top_k)
+            search_results = await screening_system.vector_db.search(
+                query_embedding, 
+                top_k,
+                time_range=7,  # 默认7天
+                only_unscreened=False,  # 默认不筛选未评估的
+                filter_job_id=None  # 岗位筛选模式下不需要额外过滤
+            )
             
             if not search_results:
                 logger.warning("未找到匹配的简历")
@@ -489,6 +507,10 @@ async def screen_resumes_by_job(
                     user_id=user_id
                 )
                 db.add(screening_result)
+                
+                # 更新简历的筛选状态
+                resume.is_screened = True
+                
                 await db.commit()
 
                 # 构建结果

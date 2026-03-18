@@ -4,6 +4,10 @@ from pymilvus import connections, Collection, CollectionSchema, FieldSchema, Dat
 from typing import List, Dict, Any, Optional
 from ..config import MILVUS_HOST, MILVUS_PORT, COLLECTION_NAME, EMBEDDING_DIM
 from ..utils.logger import logger
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from ..database import AsyncSessionLocal
+from ..models.user import Resume
 
 class MilvusVectorDB:
     """Milvus vector database wrapper with graceful degradation"""
@@ -68,8 +72,21 @@ class MilvusVectorDB:
             logger.error(f"插入向量失败: resume_id={resume_id}, 错误: {e}")
             raise
     
-    def search(self, query_embedding: List[float], top_k: int = 5) -> List[Dict[str, Any]]:
-        """Search for similar resumes"""
+    async def search(self, query_embedding: List[float], top_k: int = 5, 
+                time_range: Optional[int] = 7, only_unscreened: Optional[bool] = False,
+                filter_job_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Search for similar resumes with optional filters
+        
+        Args:
+            query_embedding: Query embedding vector
+            top_k: Number of top results to return
+            time_range: Time range in days (0 for all time)
+            only_unscreened: Only return unscreened resumes
+            filter_job_id: Filter by job ID
+            
+        Returns:
+            List of search results
+        """
         if not self.connected:
             logger.warning("Milvus 不可用，返回空搜索结果")
             return []
@@ -80,6 +97,7 @@ class MilvusVectorDB:
                 "params": {"nprobe": 10}
             }
             
+            # 执行向量搜索
             results = self.collection.search(
                 [query_embedding],
                 "embedding",
@@ -98,10 +116,71 @@ class MilvusVectorDB:
                         "distance": hit.distance
                     })
             
+            # 应用层筛选（时间范围和是否已筛选）
+            if time_range or only_unscreened or filter_job_id:
+                formatted_results = await self._apply_filters(formatted_results, time_range, only_unscreened, filter_job_id)
+            
             return formatted_results
         except Exception as e:
             logger.error(f"向量搜索失败: {e}")
             return []
+    
+    async def _apply_filters(self, search_results: List[Dict[str, Any]], 
+                           time_range: Optional[int] = None, 
+                           only_unscreened: Optional[bool] = False,
+                           filter_job_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Apply time range and screening status filters to search results
+        
+        Args:
+            search_results: Raw search results from vector DB
+            time_range: Time range in days (0 for all time)
+            only_unscreened: Only return unscreened resumes
+            filter_job_id: Filter by job ID
+            
+        Returns:
+            Filtered search results
+        """
+        if not search_results:
+            return []
+        
+        # 获取简历ID列表
+        resume_ids = [result["resume_id"] for result in search_results]
+        
+        async with AsyncSessionLocal() as db:
+            # 构建查询条件
+            query = select(Resume).where(Resume.resume_id.in_(resume_ids))
+            
+            # 时间范围筛选
+            if time_range and time_range > 0:
+                from datetime import datetime, timedelta
+                cutoff_date = datetime.now() - timedelta(days=time_range)
+                query = query.where(Resume.created_at >= cutoff_date)
+            
+            # 是否已筛选筛选
+            if only_unscreened:
+                query = query.where(Resume.is_screened == False)
+            
+            # 岗位ID筛选
+            if filter_job_id:
+                query = query.where(Resume.job_id == filter_job_id)
+            
+            # 执行查询
+            result = await db.execute(query)
+            filtered_resumes = result.scalars().all()
+            
+            # 构建过滤后的简历ID集合
+            filtered_resume_ids = {resume.resume_id for resume in filtered_resumes}
+            
+            # 过滤搜索结果
+            filtered_results = [
+                result for result in search_results 
+                if result["resume_id"] in filtered_resume_ids
+            ]
+            
+            logger.info(f"应用筛选条件: 时间范围={time_range}天, 仅未筛选={only_unscreened}, 岗位ID={filter_job_id}")
+            logger.info(f"筛选前: {len(search_results)} 个结果, 筛选后: {len(filtered_results)} 个结果")
+            
+            return filtered_results
 
     def delete_by_resume_id(self, resume_id: str) -> bool:
         """Delete a resume by resume_id"""

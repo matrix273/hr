@@ -6,6 +6,45 @@ import remarkGfm from 'remark-gfm';
 // localStorage key for saving screening config
 const STORAGE_KEY = 'screening_config';
 
+// 岗位选择器组件
+const JobSelector = ({ 
+  jobs, 
+  selectedJob, 
+  onJobChange, 
+  label = "选择岗位", 
+  required = false, 
+  placeholder = "请选择岗位",
+  helpText 
+}) => {
+  return (
+    <div className="mb-5">
+      <label className="block text-sm font-bold text-gray-600 mb-2">
+        {label}{required && ' *'}
+      </label>
+      <select
+        className="w-full px-3 py-2.5 border border-gray-300 rounded-md text-sm bg-white text-gray-800 cursor-pointer appearance-auto focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+        value={selectedJob?.job_id || ''}
+        onChange={(e) => {
+          const job = jobs.find(j => j.job_id === e.target.value);
+          onJobChange(job);
+        }}
+      >
+        <option value="">{placeholder}</option>
+        {jobs.map((job) => (
+          <option key={job.job_id} value={job.job_id}>
+            {job.title} {job.location ? `(${job.location})` : ''}
+          </option>
+        ))}
+      </select>
+      {helpText && (
+        <span className="block text-xs text-gray-500 mt-1 italic">
+          {helpText}
+        </span>
+      )}
+    </div>
+  );
+};
+
 const Screening = () => {
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
@@ -20,6 +59,16 @@ const Screening = () => {
   const [stickyTitle, setStickyTitle] = useState(null);
 
   const [useJobId, setUseJobId] = useState(true);
+
+  // 简历过滤状态
+  const [filterJob, setFilterJob] = useState(null);
+
+  // 滚动到开始筛选按钮的引用
+  const startScreenButtonRef = React.useRef(null);
+
+  // 新增筛选条件
+  const [timeRange, setTimeRange] = useState(7); // 默认7天
+  const [onlyUnscreened, setOnlyUnscreened] = useState(false); // 只筛选未评估的
 
   // 历史记录状态
   const [showHistory, setShowHistory] = useState(false);
@@ -391,6 +440,19 @@ const Screening = () => {
     fetchJobs();
   }, []);
 
+  // 当切换到自定义描述模式时，自动滚动到开始筛选按钮
+  useEffect(() => {
+    if (!useJobId && startScreenButtonRef.current) {
+      // 使用setTimeout确保在DOM更新后执行滚动
+      setTimeout(() => {
+        startScreenButtonRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest'
+        });
+      }, 100);
+    }
+  }, [useJobId]);
+
   // ESC键关闭预览
   useEffect(() => {
     const handleEsc = (e) => {
@@ -411,20 +473,23 @@ const Screening = () => {
     setShowHistory(false);  // 筛选时隐藏历史记录
 
     try {
+      // 验证岗位选择
+      const currentJob = useJobId ? selectedJob : filterJob;
+      if (!currentJob) {
+        setError('请选择岗位');
+        setLoading(false);
+        return;
+      }
+      
       if (useJobId) {
-        if (!selectedJob) {
-          setError('请选择岗位');
-          setLoading(false);
-          return;
-        }
-        await streamScreeningResults(selectedJob.job_id);
+        await streamScreeningResults(currentJob.job_id, null, null, timeRange, onlyUnscreened);
       } else {
         if (!jobDescription.trim()) {
           setError('请输入职位描述');
           setLoading(false);
           return;
         }
-        await streamScreeningResults(null, jobDescription);
+        await streamScreeningResults(null, jobDescription, currentJob.job_id, timeRange, onlyUnscreened);
       }
     } catch (err) {
       setError(err.response?.data?.detail || '筛选失败');
@@ -432,20 +497,27 @@ const Screening = () => {
     }
   };
 
-  const streamScreeningResults = async (jobId, jobDescription = null) => {
+  const streamScreeningResults = async (jobId, jobDescription = null, filterJobId = null, timeRange = 7, onlyUnscreened = false) => {
     let url;
     let data = null;
     
+    // 构建基础URL参数
+    const baseParams = `top_k=${topK}&model=${selectedModel}&time_range=${timeRange}&only_unscreened=${onlyUnscreened}`;
+    
     if (jobId) {
-      // 选择岗位模式
-      url = `/api/screening/screen_by_job/${jobId}?top_k=${topK}&model=${selectedModel}`;
+      // 选择岗位模式：自动使用选中的岗位进行筛选，不需要额外的filter参数
+      url = `/api/screening/screen_by_job/${jobId}?${baseParams}`;
     } else {
-      // 自定义描述模式
-      url = `/api/screening/screen?top_k=${topK}&model=${selectedModel}`;
+      // 自定义描述模式：支持岗位过滤
+      const filterParam = filterJobId ? `&filter_job_id=${filterJobId}` : '';
+      url = `/api/screening/screen?${baseParams}${filterParam}`;
       data = {
         job_description: jobDescription,
         top_k: topK,
-        model: selectedModel
+        model: selectedModel,
+        filter_job_id: filterJobId || undefined,
+        time_range: timeRange,
+        only_unscreened: onlyUnscreened
       };
     }
 
@@ -655,30 +727,122 @@ const Screening = () => {
   );
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h2 style={styles.title}>简历筛选</h2>
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-white m-0">简历筛选</h2>
       </div>
 
-
-        
-        <div style={styles.content}>
-        <div style={styles.leftPanel}>
-          <div style={styles.card}>
-            <div style={styles.cardHeader}>
-              <h3 style={styles.cardTitle}>筛选配置</h3>
+      <div className="grid grid-cols-[400px_1fr] gap-6 min-h-600">
+        <div className="flex flex-col gap-4">
+          <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+            <div className="px-6 py-5 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-800 m-0">筛选配置</h3>
             </div>
 
-            <div style={styles.cardBody}>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>筛选方式</label>
-                <div style={styles.toggleContainer}>
+            <div className="p-6 max-h-[calc(100vh-240px)] overflow-y-auto relative">
+              {/* 全局配置 - 放在tab切换上方 */}
+              {/* 全局岗位选择器 */}
+              <JobSelector
+                jobs={jobs}
+                selectedJob={useJobId ? selectedJob : filterJob}
+                onJobChange={(job) => {
+                  if (useJobId) {
+                    setSelectedJob(job);
+                    if (job) {
+                      fetchHistory(job.job_id);
+                      setShowHistory(true);  // 选择岗位后自动显示历史记录
+                    } else {
+                      setHistoryResults([]);
+                      setShowHistory(false);
+                    }
+                  } else {
+                    setFilterJob(job);
+                  }
+                  setResults([]);  // 清空新结果
+                  setError('');
+                }}
+                label="筛选岗位"
+                required={!useJobId}
+                placeholder={useJobId ? "请选择岗位（筛选依据）" : "请选择岗位（必选）"}
+                helpText={
+                  useJobId 
+                    ? "选择要筛选简历的目标岗位" 
+                    : "选择岗位将只筛选该岗位的简历"
+                }
+              />
+
+              <div className="mb-5">
+                <label className="block text-sm font-bold text-gray-600 mb-2">返回数量 (Top K)</label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm text-gray-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  value={topK}
+                  onChange={(e) => setTopK(parseInt(e.target.value) || 5)}
+                  min={1}
+                  max={20}
+                />
+              </div>
+
+              <div className="mb-5">
+                <label className="block text-sm font-bold text-gray-600 mb-2">评估模型</label>
+                <select
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-md text-sm bg-white text-gray-800 cursor-pointer focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                >
+                  {models.map((model) => (
+                    <option key={model.value} value={model.value}>
+                      {model.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mb-5">
+                <label className="block text-sm font-bold text-gray-600 mb-2">上传时间段</label>
+                <select
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-md text-sm bg-white text-gray-800 cursor-pointer focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  value={timeRange}
+                  onChange={(e) => setTimeRange(parseInt(e.target.value))}
+                >
+                  <option value={1}>1天内</option>
+                  <option value={3}>3天内</option>
+                  <option value={7}>7天内</option>
+                  <option value={30}>30天内</option>
+                  <option value={0}>所有时间</option>
+                </select>
+              </div>
+
+              <div className="mb-5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-bold text-gray-600 mb-0">只筛选未评估的</label>
+                  <div 
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full cursor-pointer transition-colors ${
+                      onlyUnscreened ? 'bg-indigo-500' : 'bg-gray-200'
+                    }`}
+                    onClick={() => setOnlyUnscreened(!onlyUnscreened)}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        onlyUnscreened ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </div>
+                </div>
+                <span className="block text-xs text-gray-500 mt-1 italic">
+                  只筛选之前未被AI评估过的简历
+                </span>
+              </div>
+
+              <div className="mb-5">
+                <label className="block text-sm font-bold text-gray-600 mb-2">筛选方式</label>
+                <div className="flex gap-2">
                   <button
-                    style={{
-                      ...styles.toggleButton,
-                      backgroundColor: useJobId ? '#667eea' : '#f5f5f5',
-                      color: useJobId ? 'white' : '#333'
-                    }}
+                    className={`flex-1 py-2.5 px-4 border-none rounded-md cursor-pointer text-sm font-medium transition-all duration-200 ${
+                      useJobId 
+                        ? 'bg-indigo-500 text-white' 
+                        : 'bg-gray-100 text-gray-800'
+                    }`}
                     onClick={() => {
                       setUseJobId(true);
                       setJobDescription('');
@@ -697,14 +861,14 @@ const Screening = () => {
                       }
                     }}
                   >
-                    选择岗位
+                    岗位筛选
                   </button>
                   <button
-                    style={{
-                      ...styles.toggleButton,
-                      backgroundColor: !useJobId ? '#667eea' : '#f5f5f5',
-                      color: !useJobId ? 'white' : '#333'
-                    }}
+                    className={`flex-1 py-2.5 px-4 border-none rounded-md cursor-pointer text-sm font-medium transition-all duration-200 ${
+                      !useJobId 
+                        ? 'bg-indigo-500 text-white' 
+                        : 'bg-gray-100 text-gray-800'
+                    }`}
                     onClick={() => {
                       setUseJobId(false);
                       setSelectedJob(null);
@@ -722,41 +886,11 @@ const Screening = () => {
                 </div>
               </div>
 
-              {useJobId && (
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>选择岗位</label>
-                  <select
-                    style={styles.select}
-                    value={selectedJob?.job_id || ''}
-                    onChange={(e) => {
-                      const job = jobs.find(j => j.job_id === e.target.value);
-                      setSelectedJob(job);
-                      if (job) {
-                        fetchHistory(job.job_id);
-                        setShowHistory(true);  // 选择岗位后自动显示历史记录
-                      } else {
-                        setHistoryResults([]);
-                        setShowHistory(false);
-                      }
-                      setResults([]);  // 清空新结果
-                      setError('');
-                    }}
-                  >
-                    <option value="">请选择岗位</option>
-                    {jobs.map((job) => (
-                      <option key={job.job_id} value={job.job_id}>
-                        {job.title} {job.location ? `(${job.location})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
               {!useJobId && (
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>职位描述</label>
+                <div className="mb-5">
+                  <label className="block text-sm font-bold text-gray-600 mb-2">职位描述</label>
                   <textarea
-                    style={styles.textarea}
+                    className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm text-gray-800 font-sans resize-vertical focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     placeholder="请输入详细的职位描述，包括岗位要求、技能要求等..."
                     value={jobDescription}
                     onChange={(e) => setJobDescription(e.target.value)}
@@ -765,55 +899,28 @@ const Screening = () => {
                 </div>
               )}
 
-              <div style={styles.formGroup}>
-                <label style={styles.label}>返回数量 (Top K)</label>
-                <input
-                  type="number"
-                  style={styles.input}
-                  value={topK}
-                  onChange={(e) => setTopK(parseInt(e.target.value) || 5)}
-                  min={1}
-                  max={20}
-                />
-              </div>
+              {error && <div className="px-3.5 py-2.5 bg-red-50 text-red-500 rounded-md text-sm mb-4">{error}</div>}
 
-              <div style={styles.formGroup}>
-                <label style={styles.label}>评估模型</label>
-                <select
-                  style={styles.select}
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
+              <div ref={startScreenButtonRef}>
+                <button
+                  className="w-full py-3 bg-indigo-500 text-white border-none rounded-md cursor-pointer text-base font-bold transition-colors duration-200 disabled:opacity-50"
+                  onClick={handleScreen}
+                  disabled={loading}
                 >
-                  {models.map((model) => (
-                    <option key={model.value} value={model.value}>
-                      {model.label}
-                    </option>
-                  ))}
-                </select>
+                  {loading ? '筛选中...' : '开始筛选'}
+                </button>
               </div>
-
-              {error && <div style={styles.error}>{error}</div>}
-
-              <button
-                style={styles.screenButton}
-                onClick={handleScreen}
-                disabled={loading}
-              >
-                {loading ? '筛选中...' : '开始筛选'}
-              </button>
 
               {currentProgress && (
-                <div style={styles.progressContainer}>
-                  <div style={styles.progressText}>
+                <div className="mt-4">
+                  <div className="text-sm text-gray-600 mb-2">
                     正在评估: <strong>{currentProgress.filename}</strong>
                     ({currentProgress.current}/{currentProgress.total})
                   </div>
-                  <div style={styles.progressBar}>
+                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                     <div
-                      style={{
-                        ...styles.progressFill,
-                        width: `${(currentProgress.current / currentProgress.total) * 100}%`
-                      }}
+                      className="h-full bg-indigo-500 transition-all duration-300 ease-in-out"
+                      style={{ width: `${(currentProgress.current / currentProgress.total) * 100}%` }}
                     />
                   </div>
                 </div>
@@ -822,29 +929,29 @@ const Screening = () => {
           </div>
 
           {useJobId && selectedJob && (
-            <div style={styles.stickyCard}>
-              <div style={styles.cardHeader}>
-                <h3 style={styles.cardTitle}>岗位信息</h3>
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden sticky top-20 max-h-[calc(100vh-120px)] overflow-y-auto z-10 border border-gray-200">
+              <div className="px-6 py-5 border-b border-gray-200">
+                <h3 className="text-lg font-bold text-gray-800 m-0">岗位信息</h3>
               </div>
-              <div style={styles.cardBody}>
-                <div style={styles.jobInfo}>
-                  <div style={styles.jobTitle}>{selectedJob.title}</div>
-                  <div style={styles.jobMeta}>
+              <div className="p-6">
+                <div className="flex flex-col gap-3">
+                  <div className="text-lg font-bold text-gray-800">{selectedJob.title}</div>
+                  <div className="flex gap-4 text-sm text-gray-500">
                     {selectedJob.location && (
-                      <span style={styles.metaItem}>📍 {selectedJob.location}</span>
+                      <span className="text-sm">📍 {selectedJob.location}</span>
                     )}
                     {selectedJob.salary_range && (
-                      <span style={styles.metaItem}>💰 {selectedJob.salary_range}</span>
+                      <span className="text-sm">💰 {selectedJob.salary_range}</span>
                     )}
                   </div>
-                  <div style={styles.jobSection}>
-                    <h4 style={styles.sectionTitle}>岗位描述</h4>
-                    <p style={styles.sectionText}>{selectedJob.description}</p>
+                  <div className="mt-3">
+                    <h4 className="text-sm font-bold text-gray-600 mb-2">岗位描述</h4>
+                    <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{selectedJob.description}</p>
                   </div>
                   {selectedJob.requirements && (
-                    <div style={styles.jobSection}>
-                      <h4 style={styles.sectionTitle}>岗位要求</h4>
-                      <p style={styles.sectionText}>{selectedJob.requirements}</p>
+                    <div className="mt-2">
+                      <h4 className="text-sm font-bold text-gray-600 mb-2">岗位要求</h4>
+                      <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{selectedJob.requirements}</p>
                     </div>
                   )}
                 </div>
@@ -1279,7 +1386,7 @@ const styles = {
   title: {
     fontSize: '24px',
     fontWeight: 'bold',
-    color: '#333',
+    color: '#fff',
     margin: 0,
   },
   content: {
@@ -1300,13 +1407,14 @@ const styles = {
     overflow: 'hidden',
   },
   card: {
-    backgroundColor: 'white',
+    backgroundColor: '#fff',
     borderRadius: '12px',
     boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
     overflow: 'hidden',
+    border: '1px solid #e0e0e0',
   },
   stickyCard: {
-    backgroundColor: 'white',
+    backgroundColor: '#fff',
     borderRadius: '12px',
     boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
     overflow: 'hidden',
@@ -1315,11 +1423,12 @@ const styles = {
     maxHeight: 'calc(100vh - 120px)',
     overflowY: 'auto',
     zIndex: 10,
+    border: '1px solid #e0e0e0',
   },
   stickyTitleBar: {
     position: 'sticky',
     top: '-24px',  // 考虑到卡片主体的padding
-    backgroundColor: 'white',
+    backgroundColor: '#fff',
     borderBottom: '2px solid #667eea',
     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
     zIndex: 10,

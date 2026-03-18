@@ -127,19 +127,23 @@ const JobManagement = () => {
   };
 
   if (loading) {
-    return <div style={styles.loading}>加载中...</div>;
+    return <div className="text-center py-12 text-gray-500">加载中...</div>;
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h2 style={styles.title}>岗位管理</h2>
-        <div style={styles.headerButtons}>
-          <button style={styles.refreshButton} onClick={fetchJobs}>
+    <div className="flex flex-col gap-4 p-6">
+      {/* 头部 */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">岗位管理</h2>
+        <div className="flex gap-3">
+          <button 
+            className="btn-primary"
+            onClick={fetchJobs}
+          >
             刷新
           </button>
           <button
-            style={styles.createButton}
+            className="btn-success"
             onClick={() => {
               setEditingJob(null);
               setFormData({
@@ -160,69 +164,86 @@ const JobManagement = () => {
         </div>
       </div>
 
-      {error && <div style={styles.error}>{error}</div>}
+      {/* 错误提示 */}
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
 
+      {/* 表单弹窗 */}
       {showForm && (
-        <div style={styles.formContainer}>
-          <div style={styles.formHeader}>
-            <h3 style={styles.formTitle}>
+        <div className="bg-white p-6 rounded-lg shadow-lg border border-gray-300">
+          <div className="flex justify-between items-center mb-5">
+            <h3 className="text-xl font-bold text-gray-800">
               {editingJob ? '编辑岗位' : '新建岗位'}
             </h3>
-            <button style={styles.closeButton} onClick={handleCloseForm}>
+            <button 
+              className="w-8 h-8 bg-gray-600 text-white rounded flex items-center justify-center hover:bg-gray-700 transition-colors"
+              onClick={handleCloseForm}
+            >
               ✕
             </button>
           </div>
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>岗位标题 *</label>
+          
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {/* 岗位标题 */}
+            <div className="flex flex-col gap-2">
+              <label className="form-label">岗位标题 *</label>
               <input
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({...formData, title: e.target.value})}
-                style={styles.input}
+                className="form-input"
                 placeholder="请输入岗位标题"
                 required
               />
             </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>岗位描述 *</label>
+
+            {/* 岗位描述 */}
+            <div className="flex flex-col gap-2">
+              <label className="form-label">岗位描述 *</label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({...formData, description: e.target.value})}
-                style={styles.textarea}
+                className="form-textarea"
                 placeholder="请输入岗位描述"
                 rows={6}
                 required
               />
             </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>岗位要求</label>
+
+            {/* 岗位要求 */}
+            <div className="flex flex-col gap-2">
+              <label className="form-label">岗位要求</label>
               <textarea
                 value={formData.requirements}
                 onChange={(e) => setFormData({...formData, requirements: e.target.value})}
-                style={styles.textarea}
+                className="form-textarea"
                 placeholder="请输入岗位要求"
                 rows={4}
               />
             </div>
-            <div style={styles.formRow}>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>工作经验（年）</label>
+
+            {/* 工作经验 & 学历要求 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <label className="form-label">工作经验（年）</label>
                 <input
                   type="number"
                   value={formData.experience_years}
                   onChange={(e) => setFormData({...formData, experience_years: e.target.value})}
-                  style={styles.input}
+                  className="form-input"
                   placeholder="例如：3"
                   min="0"
                 />
               </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>学历要求</label>
+              <div className="flex flex-col gap-2">
+                <label className="form-label">学历要求</label>
                 <select
                   value={formData.education}
                   onChange={(e) => setFormData({...formData, education: e.target.value})}
-                  style={styles.input}
+                  className="form-select"
                 >
                   <option value="">请选择</option>
                   <option value="不限">不限</option>
@@ -234,47 +255,53 @@ const JobManagement = () => {
                 </select>
               </div>
             </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>资格证书</label>
+
+            {/* 资格证书 */}
+            <div className="flex flex-col gap-2">
+              <label className="form-label">资格证书</label>
               <textarea
                 value={formData.certifications}
                 onChange={(e) => setFormData({...formData, certifications: e.target.value})}
-                style={styles.textarea}
+                className="form-textarea"
                 placeholder="请输入要求的资格证书，例如：PMP认证、CPA证书等"
                 rows={3}
               />
             </div>
-            <div style={styles.formRow}>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>薪资范围</label>
+
+            {/* 薪资范围 & 工作地点 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <label className="form-label">薪资范围</label>
                 <input
                   type="text"
                   value={formData.salary_range}
                   onChange={(e) => setFormData({...formData, salary_range: e.target.value})}
-                  style={styles.input}
+                  className="form-input"
                   placeholder="例如：15K-25K"
                 />
               </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>工作地点</label>
+              <div className="flex flex-col gap-2">
+                <label className="form-label">工作地点</label>
                 <input
                   type="text"
                   value={formData.location}
                   onChange={(e) => setFormData({...formData, location: e.target.value})}
-                  style={styles.input}
+                  className="form-input"
                   placeholder="例如：北京、上海"
                 />
               </div>
             </div>
-            <div style={styles.formActions}>
+
+            {/* 表单操作按钮 */}
+            <div className="flex justify-end gap-3 mt-2">
               <button
                 type="button"
-                style={styles.cancelButton}
+                className="btn-secondary"
                 onClick={handleCloseForm}
               >
                 取消
               </button>
-              <button type="submit" style={styles.submitButton}>
+              <button type="submit" className="btn-primary">
                 {editingJob ? '更新' : '创建'}
               </button>
             </div>
@@ -282,64 +309,71 @@ const JobManagement = () => {
         </div>
       )}
 
-      <div style={styles.content}>
-        <div style={styles.listContainer}>
-          <h3 style={styles.listTitle}>岗位列表 ({jobs.length})</h3>
+      {/* 岗位列表 */}
+      <div className="flex gap-6 min-h-[600px]">
+        <div className="flex-1 card p-6">
+          <h3 className="text-xl font-bold text-gray-800 mb-5">
+            岗位列表 ({jobs.length})
+          </h3>
 
           {jobs.length === 0 ? (
-            <div style={styles.empty}>
-              <div style={styles.emptyIcon}>💼</div>
-              <p style={styles.emptyText}>暂无岗位</p>
+            <div className="text-center py-16 px-8">
+              <div className="text-6xl mb-4">💼</div>
+              <p className="text-gray-500 text-lg">暂无岗位</p>
             </div>
           ) : (
-            <div style={styles.jobList}>
+            <div className="flex flex-col gap-3">
               {jobs.map((job) => (
-                <div key={job.job_id} style={styles.jobItem}>
-                  <div style={styles.jobMain}>
-                    <div style={styles.jobIcon}>💼</div>
-                    <div style={styles.jobInfo}>
-                      <div style={styles.jobTitle}>{job.title}</div>
-                      <div style={styles.jobMeta}>
+                <div 
+                  key={job.job_id} 
+                  className="flex justify-between items-center p-4 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="text-3xl">💼</div>
+                    <div className="flex flex-col gap-1">
+                      <div className="text-gray-800 font-medium">{job.title}</div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
                         {job.location && (
                           <>
-                            <span style={styles.metaItem}>📍 {job.location}</span>
-                            <span style={styles.metaSeparator}>•</span>
+                            <span>📍 {job.location}</span>
+                            <span className="text-gray-400">•</span>
                           </>
                         )}
                         {job.salary_range && (
                           <>
-                            <span style={styles.metaItem}>💰 {job.salary_range}</span>
-                            <span style={styles.metaSeparator}>•</span>
+                            <span>💰 {job.salary_range}</span>
+                            <span className="text-gray-400">•</span>
                           </>
                         )}
                         {job.experience_years && (
                           <>
-                            <span style={styles.metaItem}>📅 {job.experience_years}年经验</span>
-                            <span style={styles.metaSeparator}>•</span>
+                            <span>📅 {job.experience_years}年经验</span>
+                            <span className="text-gray-400">•</span>
                           </>
                         )}
                         {job.education && (
                           <>
-                            <span style={styles.metaItem}>🎓 {job.education}</span>
-                            <span style={styles.metaSeparator}>•</span>
+                            <span>🎓 {job.education}</span>
+                            <span className="text-gray-400">•</span>
                           </>
                         )}
-                        <span style={styles.metaItem}>{formatDate(job.created_at)}</span>
+                        <span>{formatDate(job.created_at)}</span>
                       </div>
-                      <div style={styles.jobDescription}>
+                      <div className="text-sm text-gray-600 mt-2 leading-relaxed">
                         {job.description.substring(0, 200)}...
                       </div>
                     </div>
                   </div>
-                  <div style={styles.actionButtons}>
+                  
+                  <div className="flex gap-2">
                     <button
-                      style={styles.editButton}
+                      className="btn-success px-4 py-1.5 text-xs whitespace-nowrap"
                       onClick={() => handleEdit(job)}
                     >
                       编辑
                     </button>
                     <button
-                      style={styles.deleteButton}
+                      className="btn-danger px-4 py-1.5 text-xs whitespace-nowrap"
                       onClick={() => handleDelete(job.job_id)}
                     >
                       删除
@@ -353,260 +387,6 @@ const JobManagement = () => {
       </div>
     </div>
   );
-};
-
-const styles = {
-  container: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '16px',
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerButtons: {
-    display: 'flex',
-    gap: '12px',
-  },
-  title: {
-    fontSize: '24px',
-    fontWeight: 'bold',
-    color: '#333',
-    margin: 0,
-  },
-  refreshButton: {
-    padding: '8px 16px',
-    backgroundColor: '#667eea',
-    color: 'white',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '500',
-  },
-  createButton: {
-    padding: '8px 16px',
-    backgroundColor: '#10b981',
-    color: 'white',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '500',
-  },
-  loading: {
-    textAlign: 'center',
-    padding: '48px',
-    color: '#999',
-  },
-  error: {
-    padding: '12px 16px',
-    backgroundColor: '#fee',
-    color: '#e74c3c',
-    borderRadius: '6px',
-    fontSize: '14px',
-  },
-  formContainer: {
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-    padding: '24px',
-  },
-  formHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '20px',
-  },
-  formTitle: {
-    fontSize: '20px',
-    fontWeight: 'bold',
-    color: '#333',
-    margin: 0,
-  },
-  closeButton: {
-    backgroundColor: '#f5f5f5',
-    border: 'none',
-    borderRadius: '4px',
-    width: '32px',
-    height: '32px',
-    fontSize: '18px',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '16px',
-  },
-  formGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-  },
-  formRow: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '16px',
-  },
-  label: {
-    fontSize: '14px',
-    fontWeight: 'bold',
-    color: '#555',
-  },
-  input: {
-    padding: '12px',
-    border: '1px solid #ddd',
-    borderRadius: '6px',
-    fontSize: '14px',
-    width: '100%',
-    boxSizing: 'border-box',
-  },
-  textarea: {
-    padding: '12px',
-    border: '1px solid #ddd',
-    borderRadius: '6px',
-    fontSize: '14px',
-    width: '100%',
-    boxSizing: 'border-box',
-    fontFamily: 'inherit',
-    resize: 'vertical',
-  },
-  formActions: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: '12px',
-    marginTop: '8px',
-  },
-  cancelButton: {
-    padding: '10px 20px',
-    backgroundColor: '#f5f5f5',
-    color: '#333',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '500',
-  },
-  submitButton: {
-    padding: '10px 20px',
-    backgroundColor: '#667eea',
-    color: 'white',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '500',
-  },
-  content: {
-    display: 'flex',
-    gap: '24px',
-    minHeight: '600px',
-  },
-  listContainer: {
-    flex: 1,
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-    padding: '24px',
-  },
-  listTitle: {
-    fontSize: '20px',
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: '20px',
-  },
-  empty: {
-    textAlign: 'center',
-    padding: '64px 32px',
-  },
-  emptyIcon: {
-    fontSize: '64px',
-    marginBottom: '16px',
-  },
-  emptyText: {
-    fontSize: '16px',
-    color: '#999',
-  },
-  jobList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-  },
-  jobItem: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '16px',
-    border: '1px solid #e0e0e0',
-    borderRadius: '8px',
-    transition: 'all 0.2s',
-  },
-  jobMain: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-  },
-  jobIcon: {
-    fontSize: '32px',
-  },
-  jobInfo: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-  },
-  jobTitle: {
-    fontSize: '15px',
-    fontWeight: '500',
-    color: '#333',
-  },
-  jobMeta: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    fontSize: '13px',
-    color: '#999',
-  },
-  metaItem: {
-    fontSize: '13px',
-  },
-  metaSeparator: {
-    color: '#ddd',
-  },
-  jobDescription: {
-    fontSize: '13px',
-    color: '#666',
-    marginTop: '8px',
-    lineHeight: '1.4',
-  },
-  actionButtons: {
-    display: 'flex',
-    gap: '8px',
-  },
-  editButton: {
-    padding: '6px 12px',
-    backgroundColor: '#10b981',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '13px',
-    fontWeight: '500',
-  },
-  deleteButton: {
-    padding: '6px 12px',
-    backgroundColor: '#e74c3c',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '13px',
-    fontWeight: '500',
-  },
 };
 
 export default JobManagement;

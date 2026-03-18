@@ -130,87 +130,86 @@ const Register = () => {
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.registerBox}>
-        <div style={styles.header}>
+    <div className="flex justify-center items-center min-h-screen bg-gray-50 w-full p-5">
+      <div className="bg-white p-10 rounded-xl shadow-sm w-full max-w-md min-w-80">
+        <div className="relative mb-5">
           <button 
             type="button" 
-            style={styles.backButton} 
+            className="absolute left-0 bg-transparent border-none text-indigo-500 text-sm cursor-pointer px-3 py-2 rounded font-bold hover:bg-indigo-50" 
             onClick={() => navigate('/')}
           >
             ← 返回
           </button>
-          <h2 style={styles.title}>注册</h2>
-          <div style={{ width: '60px' }}></div>
+          <h2 className="text-2xl text-center text-gray-800 m-0 font-bold">注册</h2>
         </div>
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>用户名 <span style={styles.required}>*</span></label>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-bold text-gray-600">用户名 <span className="text-red-500 ml-0.5">*</span></label>
             <input
               type="text"
               name="username"
               value={formData.username}
               onChange={handleChange}
-              style={styles.input}
+              className="px-3 py-3 border border-gray-300 rounded-md text-sm w-full box-border bg-gray-50 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:bg-white text-gray-800"
               placeholder="请输入用户名"
               required
             />
           </div>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>邮箱 <span style={styles.required}>*</span></label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-bold text-gray-600">邮箱 <span className="text-red-500 ml-0.5">*</span></label>
             <input
               type="email"
               name="email"
               value={formData.email}
               onChange={handleChange}
-              style={styles.input}
+              className="px-3 py-3 border border-gray-300 rounded-md text-sm w-full box-border bg-gray-50 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:bg-white text-gray-800"
               placeholder="请输入邮箱"
               required
             />
           </div>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>姓名 <span style={styles.required}>*</span></label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-bold text-gray-600">姓名 <span className="text-red-500 ml-0.5">*</span></label>
             <input
               type="text"
               name="full_name"
               value={formData.full_name}
               onChange={handleChange}
-              style={styles.input}
+              className="px-3 py-3 border border-gray-300 rounded-md text-sm w-full box-border bg-gray-50 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:bg-white"
               placeholder="请输入真实姓名"
               required
             />
           </div>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>密码 <span style={styles.required}>*</span></label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-bold text-gray-600">密码 <span className="text-red-500 ml-0.5">*</span></label>
             <input
               type="password"
               name="password"
               value={formData.password}
               onChange={handleChange}
-              style={styles.input}
+              className="px-3 py-3 border border-gray-300 rounded-md text-sm w-full box-border bg-gray-50 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:bg-white"
               placeholder="请输入密码（至少6位）"
               required
             />
           </div>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>确认密码 <span style={styles.required}>*</span></label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-bold text-gray-600">确认密码 <span className="text-red-500 ml-0.5">*</span></label>
             <input
               type="password"
               name="confirmPassword"
               value={formData.confirmPassword}
               onChange={handleChange}
-              style={styles.input}
+              className="px-3 py-3 border border-gray-300 rounded-md text-sm w-full box-border bg-gray-50 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:bg-white"
               placeholder="请再次输入密码"
               required
             />
           </div>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>角色 <span style={styles.required}>*</span></label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-bold text-gray-600">角色 <span className="text-red-500 ml-0.5">*</span></label>
             <select
               name="role"
               value={formData.role}
               onChange={handleChange}
-              style={styles.select}
+              className="px-3 py-3 border border-gray-300 rounded-md text-sm w-full box-border bg-gray-50 cursor-pointer text-gray-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:bg-white"
             >
               {availableRoles.map((role) => (
                 <option key={role.value} value={role.value}>
@@ -218,80 +217,79 @@ const Register = () => {
                 </option>
               ))}
             </select>
-            <div style={styles.roleHint}>
+            <div className="text-xs text-gray-500 mt-1">
               {availableRoles.find(r => r.value === formData.role)?.desc}
             </div>
           </div>
-          {error && <p style={styles.error}>{error}</p>}
+          {error && <p className="text-red-500 text-sm text-center -my-2">{error}</p>}
           <button
             type="submit"
-            style={styles.submitButton}
+            className="bg-indigo-500 text-white border-none px-3 py-3 rounded-md text-sm font-bold cursor-pointer transition-colors duration-200 w-full mt-2 disabled:opacity-50"
             disabled={loading}
           >
             {loading ? '注册中...' : '注册'}
           </button>
         </form>
-        <p style={styles.loginHint}>
-          已有账号？<a href="/login" style={styles.link}>立即登录</a>
+        <p className="text-center mt-5 text-sm text-gray-600">
+          已有账号？<a href="/login" className="text-indigo-500 no-underline font-bold">立即登录</a>
         </p>
-        <p style={styles.contactHint}>
-          有问题？<span style={styles.contactLink} onClick={() => setShowContactModal(true)}>联系我</span>
+        <p className="text-center mt-2.5 text-sm text-gray-600">
+          有问题？<span className="text-indigo-500 cursor-pointer font-bold" onClick={() => setShowContactModal(true)}>联系我</span>
         </p>
       </div>
 
       {/* 联系我对话框 */}
       {showContactModal && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalContent}>
-            <h3 style={styles.modalTitle}>联系我</h3>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>姓名 <span style={styles.required}>*</span></label>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white p-8 rounded-xl w-11/12 max-w-md shadow-lg">
+            <h3 className="text-xl mb-5 text-center text-gray-800">联系我</h3>
+            <div className="mb-4">
+              <label className="block text-sm font-bold text-gray-600 mb-1">姓名 <span className="text-red-500 ml-0.5">*</span></label>
               <input
                 type="text"
                 name="name"
                 value={contactForm.name}
                 onChange={handleContactChange}
-                style={styles.input}
+                className="w-full px-3 py-3 border border-gray-300 rounded-md text-sm box-border bg-gray-50 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:bg-white"
                 placeholder="请输入您的姓名"
               />
             </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>邮箱 <span style={styles.required}>*</span></label>
+            <div className="mb-4">
+              <label className="block text-sm font-bold text-gray-600 mb-1">邮箱 <span className="text-red-500 ml-0.5">*</span></label>
               <input
                 type="email"
                 name="email"
                 value={contactForm.email}
                 onChange={handleContactChange}
-                style={{
-                  ...styles.input,
-                  borderColor: contactEmailError ? '#e74c3c' : '#ddd',
-                }}
+                className={`w-full px-3 py-3 border rounded-md text-sm box-border bg-gray-50 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:bg-white ${
+                  contactEmailError ? 'border-red-500' : 'border-gray-300'
+                }`}
                 placeholder="请输入您的邮箱"
               />
-              {contactEmailError && <span style={styles.emailError}>{contactEmailError}</span>}
+              {contactEmailError && <span className="text-red-500 text-xs mt-1 block">{contactEmailError}</span>}
             </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>留言 <span style={styles.required}>*</span></label>
+            <div className="mb-4">
+              <label className="block text-sm font-bold text-gray-600 mb-1">留言 <span className="text-red-500 ml-0.5">*</span></label>
               <textarea
                 name="message"
                 value={contactForm.message}
                 onChange={handleContactChange}
-                style={styles.textarea}
+                className="w-full px-3 py-3 border border-gray-300 rounded-md text-sm box-border bg-gray-50 resize-vertical font-sans focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:bg-white"
                 placeholder="请输入您想咨询的内容..."
                 rows={4}
               />
             </div>
-            <div style={styles.modalButtons}>
+            <div className="flex gap-3 mt-5">
               <button
                 type="button"
-                style={styles.cancelButton}
+                className="flex-1 bg-gray-100 text-gray-600 border-none px-3 py-3 rounded-md text-sm cursor-pointer"
                 onClick={() => setShowContactModal(false)}
               >
                 取消
               </button>
               <button
                 type="button"
-                style={styles.confirmButton}
+                className="flex-1 bg-indigo-500 text-white border-none px-3 py-3 rounded-md text-sm cursor-pointer disabled:opacity-50"
                 onClick={handleContactSubmit}
                 disabled={contactLoading}
               >
@@ -305,199 +303,6 @@ const Register = () => {
   );
 };
 
-const styles = {
-  container: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: '100vh',
-    backgroundColor: '#f5f5f5',
-    width: '100%',
-    padding: '20px',
-  },
-  registerBox: {
-    backgroundColor: 'white',
-    padding: '40px',
-    borderRadius: '12px',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-    width: '100%',
-    maxWidth: '400px',
-    minWidth: '320px',
-  },
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: '20px',
-  },
-  backButton: {
-    backgroundColor: 'transparent',
-    border: 'none',
-    color: '#667eea',
-    fontSize: '14px',
-    cursor: 'pointer',
-    padding: '8px 12px',
-    borderRadius: '4px',
-    fontWeight: 'bold',
-  },
-  title: {
-    fontSize: '28px',
-    textAlign: 'center',
-    color: '#333',
-    margin: 0,
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '16px',
-  },
-  formGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-  },
-  label: {
-    fontSize: '14px',
-    fontWeight: 'bold',
-    color: '#555',
-  },
-  required: {
-    color: '#e74c3c',
-  },
-  emailError: {
-    color: '#e74c3c',
-    fontSize: '12px',
-    marginTop: '4px',
-    display: 'block',
-  },
-  input: {
-    padding: '12px',
-    border: '1px solid #ddd',
-    borderRadius: '6px',
-    fontSize: '14px',
-    width: '100%',
-    boxSizing: 'border-box',
-  },
-  select: {
-    padding: '12px',
-    border: '1px solid #ddd',
-    borderRadius: '6px',
-    fontSize: '14px',
-    width: '100%',
-    boxSizing: 'border-box',
-    backgroundColor: 'white',
-    cursor: 'pointer',
-    color: '#333', // 确保文本颜色可见
-    outline: 'none',
-  },
-  textarea: {
-    padding: '12px',
-    border: '1px solid #ddd',
-    borderRadius: '6px',
-    fontSize: '14px',
-    width: '100%',
-    boxSizing: 'border-box',
-    resize: 'vertical',
-    fontFamily: 'inherit',
-  },
-  roleHint: {
-    fontSize: '12px',
-    color: '#888',
-    marginTop: '4px',
-  },
-  error: {
-    color: '#e74c3c',
-    fontSize: '14px',
-    textAlign: 'center',
-    margin: '-8px 0',
-  },
-  submitButton: {
-    backgroundColor: '#667eea',
-    color: 'white',
-    border: 'none',
-    padding: '12px',
-    borderRadius: '6px',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    transition: 'backgroundColor 0.2s',
-    width: '100%',
-    marginTop: '8px',
-  },
-  loginHint: {
-    textAlign: 'center',
-    marginTop: '20px',
-    fontSize: '14px',
-    color: '#666',
-  },
-  link: {
-    color: '#667eea',
-    textDecoration: 'none',
-    fontWeight: 'bold',
-  },
-  contactHint: {
-    textAlign: 'center',
-    marginTop: '10px',
-    fontSize: '14px',
-    color: '#666',
-  },
-  contactLink: {
-    color: '#667eea',
-    cursor: 'pointer',
-    fontWeight: 'bold',
-  },
-  // 对话框样式
-  modalOverlay: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    padding: '30px',
-    borderRadius: '12px',
-    width: '90%',
-    maxWidth: '400px',
-    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
-  },
-  modalTitle: {
-    fontSize: '22px',
-    marginBottom: '20px',
-    textAlign: 'center',
-    color: '#333',
-  },
-  modalButtons: {
-    display: 'flex',
-    gap: '12px',
-    marginTop: '20px',
-  },
-  cancelButton: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-    color: '#666',
-    border: 'none',
-    padding: '12px',
-    borderRadius: '6px',
-    fontSize: '16px',
-    cursor: 'pointer',
-  },
-  confirmButton: {
-    flex: 1,
-    backgroundColor: '#667eea',
-    color: 'white',
-    border: 'none',
-    padding: '12px',
-    borderRadius: '6px',
-    fontSize: '16px',
-    cursor: 'pointer',
-  },
-};
+
 
 export default Register;
