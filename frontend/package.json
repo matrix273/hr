@@ -10,10 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@emotion/react": "^11.11.1",
-    "@emotion/styled": "^11.11.0",
-    "@mui/icons-material": "^7.3.9",
-    "@mui/material": "^7.3.9",
+    "antd": "^5.18.2",
+    "@ant-design/icons": "^5.5.0",
     "axios": "^1.13.6",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.1",
@@ -22,8 +20,7 @@
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.13.1",
-    "remark-gfm": "^4.0.1",
-    "tailwindcss": "^3.4.19"
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

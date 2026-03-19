@@ -1,6 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 import { jobService } from '../services/jobService';
+import {
+  Button,
+  Card,
+  Select,
+  Progress,
+  Alert,
+  message,
+  Modal,
+  Space,
+  Typography,
+  Divider,
+  Upload,
+  Tag
+} from 'antd';
+import { InboxOutlined, DeleteOutlined, CloseOutlined } from '@ant-design/icons';
+
+const { Title, Text } = Typography;
+const { Dragger } = Upload;
 
 const ResumeUpload = ({ onUploadSuccess }) => {
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -201,41 +219,62 @@ const ResumeUpload = ({ onUploadSuccess }) => {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      {/* 上传区域 */}
-      <div className="bg-white p-8 border border-gray-200 rounded-xl shadow-lg">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">上传简历</h2>
+    <div style={{ padding: '24px', background: '#f5f5f5', minHeight: '100vh' }}>
+      {/* 头部 */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        marginBottom: '16px'
+      }}>
+        <Title level={2} style={{ margin: 0, color: '#262626' }}>
+          上传简历
+        </Title>
+      </div>
 
+      {/* 上传区域 */}
+      <Card 
+        style={{ marginBottom: '24px' }}
+        bodyStyle={{ padding: '24px' }}
+      >
         {/* 岗位选择器 */}
-        <div className="mb-6">
+        <div style={{ marginBottom: '24px' }}>
           {!loadingJobs && jobs.length === 0 ? (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-red-700 font-medium">请先创建岗位</p>
-              <p className="text-red-600 text-sm mt-1">
-                当前没有可用岗位，请先前往 
-                <a href="/jobs" className="underline hover:text-red-800 font-medium">岗位管理</a> 
-                页面创建岗位后再上传简历
-              </p>
-            </div>
+            <Alert
+              message="请先创建岗位"
+              description={
+                <span>
+                  当前没有可用岗位，请先前往 
+                  <a href="/jobs" style={{ textDecoration: 'underline', fontWeight: '500' }}>岗位管理</a> 
+                  页面创建岗位后再上传简历
+                </span>
+              }
+              type="warning"
+              showIcon
+            />
           ) : (
             <>
-              <label className="form-label">选择岗位 <span className="text-red-500">*</span></label>
-              <select 
+              <div style={{ marginBottom: '8px', fontWeight: '500', color: '#262626' }}>
+                选择岗位 <span style={{ color: '#ff4d4f' }}>*</span>
+              </div>
+              <Select 
                 value={selectedJobId} 
-                onChange={(e) => setSelectedJobId(e.target.value)}
-                className="form-select"
+                onChange={(value) => setSelectedJobId(value)}
+                style={{ width: '100%' }}
                 disabled={loadingJobs}
-                required
+                placeholder="请选择岗位"
               >
-                <option value="">-- 请选择岗位 --</option>
+                <Select.Option key="" value="" disabled>
+                  请选择岗位
+                </Select.Option>
                 {jobs.map(job => (
-                  <option key={job.job_id} value={job.job_id}>
-                    {job.title}
-                  </option>
+                  <Select.Option key={job.job_id} value={job.job_id}>
+                    {job.title}{job.location ? ` (${job.location})` : ''}
+                  </Select.Option>
                 ))}
-              </select>
+              </Select>
               {loadingJobs && (
-                <span className="text-gray-400 text-sm mt-2 block">加载中...</span>
+                <div style={{ color: '#bfbfbf', fontSize: '14px', marginTop: '8px' }}>加载中...</div>
               )}
             </>
           )}
@@ -243,24 +282,32 @@ const ResumeUpload = ({ onUploadSuccess }) => {
 
         {/* 拖拽区域 */}
         <div
-          className={`border-2 border-dashed rounded-xl p-12 text-center transition-colors ${
-            error 
-              ? 'border-red-500 bg-red-50 cursor-pointer' 
-              : isDragging 
-                ? 'border-primary-500 bg-blue-50 cursor-pointer' 
-                : 'border-gray-300 bg-gray-50 cursor-default'
-          }`}
+          style={{
+            border: '2px dashed',
+            borderColor: error ? '#ff4d4f' : isDragging ? '#1890ff' : '#d9d9d9',
+            borderRadius: '8px',
+            padding: '48px 24px',
+            textAlign: 'center',
+            background: error ? '#fff2f0' : isDragging ? '#f0f8ff' : '#fafafa',
+            cursor: 'pointer',
+            transition: 'all 0.3s'
+          }}
           onDragOver={handleDragOver}
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          <div className="flex flex-col items-center gap-4">
-            <div className="text-4xl">📄</div>
-            <p className="text-gray-600 text-lg">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+            <div style={{ fontSize: '48px' }}>📄</div>
+            <div style={{ color: '#666', fontSize: '16px' }}>
               拖拽 PDF 文件到这里，或
               <label 
-                className="text-blue-600 underline cursor-pointer ml-1"
+                style={{ 
+                  color: '#1890ff', 
+                  textDecoration: 'underline', 
+                  cursor: 'pointer',
+                  marginLeft: '4px'
+                }}
                 onClick={(e) => e.stopPropagation()}
               >
                 <input
@@ -268,42 +315,65 @@ const ResumeUpload = ({ onUploadSuccess }) => {
                   accept=".pdf"
                   multiple
                   onChange={handleFileSelect}
-                  className="hidden"
+                  style={{ display: 'none' }}
                 />
                 点击选择（支持多选）
               </label>
-            </p>
+            </div>
             
             {/* 文件列表 */}
             {selectedFiles.length > 0 && (
-              <div className="mt-4 text-left w-full max-w-md">
-                <div className="flex justify-between items-center mb-2">
-                  <p className="text-gray-800 font-semibold text-sm">
+              <div style={{ marginTop: '16px', textAlign: 'left', width: '100%', maxWidth: '400px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div style={{ color: '#262626', fontWeight: '600', fontSize: '14px' }}>
                     已选择 {selectedFiles.length} 个文件：
-                  </p>
-                  <button
+                  </div>
+                  <Button
+                    size="small"
+                    danger
                     onClick={handleClearAllFiles}
-                    className="text-red-500 hover:text-red-700 text-xs font-medium px-2 py-1 rounded border border-red-300 hover:bg-red-50 transition-colors"
+                    icon={<DeleteOutlined />}
                   >
                     清空全部
-                  </button>
+                  </Button>
                 </div>
-                <div className="space-y-2">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {selectedFiles.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className="text-blue-600 text-sm">•</span>
-                        <span className="text-blue-600 text-sm truncate" title={file.name}>
+                    <div 
+                      key={index} 
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: 'white',
+                        padding: '8px',
+                        borderRadius: '4px',
+                        border: '1px solid #d9d9d9'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                        <span style={{ color: '#1890ff', fontSize: '14px' }}>•</span>
+                        <span 
+                          style={{ 
+                            color: '#1890ff', 
+                            fontSize: '14px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                          title={file.name}
+                        >
                           {file.name}
                         </span>
                       </div>
-                      <button
+                      <Button
+                        size="small"
+                        danger
+                        type="text"
                         onClick={() => handleRemoveFile(index)}
-                        className="text-red-400 hover:text-red-600 text-xs font-medium ml-2 px-2 py-1 rounded hover:bg-red-50 transition-colors flex-shrink-0"
-                        title="删除文件"
-                      >
-                        删除
-                      </button>
+                        icon={<CloseOutlined />}
+                        style={{ marginLeft: '8px', flexShrink: 0 }}
+                      />
                     </div>
                   ))}
                 </div>
@@ -314,101 +384,132 @@ const ResumeUpload = ({ onUploadSuccess }) => {
 
         {/* 错误提示 */}
         {error && (
-          <p className="text-red-400 text-sm text-center mt-4">{error}</p>
+          <div style={{ color: '#ff4d4f', fontSize: '14px', textAlign: 'center', marginTop: '16px' }}>
+            {error}
+          </div>
         )}
 
         {/* 上传进度 */}
         {uploading && (
-          <div className="mt-4">
-            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-blue-500 transition-all"
-                style={{ 
-                  width: `${(uploadProgress.current / uploadProgress.total) * 100}%` 
-                }}
-              />
-            </div>
-            <p className="text-gray-600 text-sm text-center mt-2">
+          <div style={{ marginTop: '16px' }}>
+            <Progress
+              percent={Math.round((uploadProgress.current / uploadProgress.total) * 100)}
+              size="small"
+            />
+            <div style={{ color: '#666', fontSize: '14px', textAlign: 'center', marginTop: '8px' }}>
               正在上传: {uploadProgress.current} / {uploadProgress.total}
-            </p>
+            </div>
           </div>
         )}
 
         {/* 上传按钮 */}
-        <button
-          className={`w-full py-3 px-4 rounded-lg font-semibold text-white mt-6 transition-colors ${
-            selectedFiles.length === 0 || uploading
-              ? 'bg-gray-600 cursor-not-allowed opacity-60'
-              : 'btn-primary'
-          }`}
+        <Button
+          type="primary"
+          size="large"
+          block
+          style={{ marginTop: '24px' }}
           onClick={handleUpload}
           disabled={selectedFiles.length === 0 || uploading}
+          loading={uploading}
         >
           {uploading 
             ? `上传中 (${uploadProgress.current}/${uploadProgress.total})` 
             : `上传 ${selectedFiles.length > 0 ? selectedFiles.length : ''} 个简历`
           }
-        </button>
-      </div>
+        </Button>
+      </Card>
 
       {/* 上传结果 */}
       {uploadResults.length > 0 && (
-        <div className="card p-6">
-          <h3 className="text-xl font-bold text-white mb-4">上传结果</h3>
-          <div className="space-y-3">
+        <Card 
+          title="上传结果" 
+          style={{ marginBottom: '24px' }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {uploadResults.map((result, index) => (
               <div 
                 key={index} 
-                className={`flex items-start gap-3 p-4 rounded-lg border ${
-                  result.success 
-                    ? 'border-green-500/30 bg-green-500/10' 
-                    : 'border-red-500/30 bg-red-500/10'
-                }`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                  padding: '16px',
+                  borderRadius: '6px',
+                  border: '1px solid',
+                  borderColor: result.success ? '#b7eb8f' : '#ffccc7',
+                  background: result.success ? '#f6ffed' : '#fff2f0'
+                }}
               >
-                <div className={`text-lg font-bold ${
-                  result.success ? 'text-green-400' : 'text-red-400'
-                }`}>
+                <div 
+                  style={{ 
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    color: result.success ? '#52c41a' : '#ff4d4f'
+                  }}
+                >
                   {result.success ? '✓' : '✗'}
                 </div>
-                <div className="flex-1">
-                  <p className="text-white font-medium">{result.filename}</p>
-                  <p className={`text-sm mt-1 ${
-                    result.success ? 'text-green-400' : 'text-red-400'
-                  }`}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: '#262626', fontWeight: '500' }}>{result.filename}</div>
+                  <div 
+                    style={{ 
+                      fontSize: '14px',
+                      marginTop: '4px',
+                      color: result.success ? '#52c41a' : '#ff4d4f'
+                    }}
+                  >
                     {result.message}
-                  </p>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* 解析结果 */}
       {showParsedTexts && (
-        <div className="card p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-bold text-white">
-              解析结果 ({parsedTexts.length} 个文件)
-            </h3>
-            <button
-              className="w-8 h-8 bg-gray-600 text-white rounded flex items-center justify-center hover:bg-gray-700 transition-colors"
-              onClick={() => setShowParsedTexts(false)}
-            >
-              ✕
-            </button>
-          </div>
-          <div className="bg-gray-700 p-4 rounded-lg max-h-96 overflow-auto">
+        <Modal
+          title={`解析结果 (${parsedTexts.length} 个文件)`}
+          open={showParsedTexts}
+          onCancel={() => setShowParsedTexts(false)}
+          width={800}
+          footer={null}
+        >
+          <div style={{ 
+            background: '#f5f5f5', 
+            padding: '16px', 
+            borderRadius: '6px',
+            maxHeight: '400px',
+            overflow: 'auto'
+          }}>
             {parsedTexts.map((item, index) => (
-              <div key={index} className="mb-6 pb-6 border-b border-gray-600 last:border-b-0 last:mb-0 last:pb-0">
-                <h4 className="text-white font-semibold text-lg mb-3">{item.filename}</h4>
-                <pre className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap break-words">
+              <div 
+                key={index} 
+                style={{ 
+                  marginBottom: '24px', 
+                  paddingBottom: '24px', 
+                  borderBottom: index < parsedTexts.length - 1 ? '1px solid #d9d9d9' : 'none',
+                  borderBottomColor: '#d9d9d9'
+                }}
+              >
+                <div style={{ color: '#262626', fontWeight: '600', fontSize: '16px', marginBottom: '12px' }}>
+                  {item.filename}
+                </div>
+                <pre style={{ 
+                  color: '#595959', 
+                  fontSize: '14px', 
+                  lineHeight: '1.5',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  margin: 0
+                }}>
                   {item.resume_text}
                 </pre>
               </div>
             ))}
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

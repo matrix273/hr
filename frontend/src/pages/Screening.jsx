@@ -2,6 +2,71 @@ import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { 
+  Card, 
+  Button, 
+  Input, 
+  InputNumber,
+  Select, 
+  Switch, 
+  Progress, 
+  Modal, 
+  Alert, 
+  Row, 
+  Col, 
+  Space,
+  Tag,
+  Typography,
+  Divider,
+  Collapse,
+  Tooltip
+} from 'antd';
+
+const { Title, Text } = Typography;
+import {
+  SearchOutlined,
+  FileTextOutlined,
+  DownloadOutlined,
+  DeleteOutlined,
+  EyeOutlined,
+  CheckSquareOutlined,
+  HistoryOutlined
+} from '@ant-design/icons';
+
+// Markdown表格组件 - 移到组件外部
+const MarkdownTable = ({ children }) => (
+  <div style={{ overflowX: 'auto' }}>
+    <table style={{
+      borderCollapse: 'collapse',
+      width: '100%',
+      border: '1px solid #d0d7de',
+      marginBottom: '8px',
+    }}>
+      {children}
+    </table>
+  </div>
+);
+
+const MarkdownTh = ({ children }) => (
+  <th style={{
+    border: '1px solid #d0d7de',
+    padding: '8px 12px',
+    backgroundColor: '#f5f7fa',
+    fontWeight: 'bold',
+    textAlign: 'left',
+  }}>
+    {children}
+  </th>
+);
+
+const MarkdownTd = ({ children }) => (
+  <td style={{
+    border: '1px solid #d0d7de',
+    padding: '8px 12px',
+  }}>
+    {children}
+  </td>
+);
 
 // localStorage key for saving screening config
 const STORAGE_KEY = 'screening_config';
@@ -17,29 +82,30 @@ const JobSelector = ({
   helpText 
 }) => {
   return (
-    <div className="mb-5">
-      <label className="block text-sm font-bold text-gray-600 mb-2">
+    <div style={{ marginBottom: 20 }}>
+      <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
         {label}{required && ' *'}
-      </label>
-      <select
-        className="w-full px-3 py-2.5 border border-gray-300 rounded-md text-sm bg-white text-gray-800 cursor-pointer appearance-auto focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-        value={selectedJob?.job_id || ''}
-        onChange={(e) => {
-          const job = jobs.find(j => j.job_id === e.target.value);
+      </Typography.Text>
+      <Select
+        style={{ width: '100%' }}
+        placeholder={placeholder}
+        value={selectedJob?.job_id || undefined}
+        onChange={(value) => {
+          const job = jobs.find(j => j.job_id === value);
           onJobChange(job);
         }}
-      >
-        <option value="">{placeholder}</option>
-        {jobs.map((job) => (
-          <option key={job.job_id} value={job.job_id}>
-            {job.title} {job.location ? `(${job.location})` : ''}
-          </option>
-        ))}
-      </select>
+        options={[
+          { value: '', label: placeholder, disabled: true },
+          ...jobs.map(job => ({
+            value: job.job_id,
+            label: `${job.title}${job.location ? ` (${job.location})` : ''}`
+          }))
+        ]}
+      />
       {helpText && (
-        <span className="block text-xs text-gray-500 mt-1 italic">
+        <Typography.Text type="secondary" style={{ fontSize: '12px', display: 'block', marginTop: 4 }}>
           {helpText}
-        </span>
+        </Typography.Text>
       )}
     </div>
   );
@@ -464,6 +530,16 @@ const Screening = () => {
     return () => document.removeEventListener('keydown', handleEsc);
   }, [previewResume]);
 
+  // 在组件挂载时添加动画样式
+  useEffect(() => {
+    if (!document.querySelector('style[data-animations]')) {
+      const style = document.createElement('style');
+      style.setAttribute('data-animations', 'true');
+      style.textContent = animationStyles;
+      document.head.appendChild(style);
+    }
+  }, []);
+
   const handleScreen = async () => {
     saveConfig();  // 保存配置
     setError('');
@@ -691,55 +767,28 @@ const Screening = () => {
     }
   };
 
-  // Markdown表格组件
-  const MarkdownTable = ({ children }) => (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{
-        borderCollapse: 'collapse',
-        width: '100%',
-        border: '1px solid #d0d7de',
-        marginBottom: '8px',
-      }}>
-        {children}
-      </table>
-    </div>
-  );
-
-  const MarkdownTh = ({ children }) => (
-    <th style={{
-      border: '1px solid #d0d7de',
-      padding: '8px 12px',
-      backgroundColor: '#f5f7fa',
-      fontWeight: 'bold',
-      textAlign: 'left',
-    }}>
-      {children}
-    </th>
-  );
-
-  const MarkdownTd = ({ children }) => (
-    <td style={{
-      border: '1px solid #d0d7de',
-      padding: '8px 12px',
-    }}>
-      {children}
-    </td>
-  );
-
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-white m-0">简历筛选</h2>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        marginBottom: '16px'
+      }}>
+        <Title level={2} style={{ margin: 0, color: '#262626' }}>
+          简历筛选
+        </Title>
       </div>
 
-      <div className="grid grid-cols-[400px_1fr] gap-6 min-h-600">
-        <div className="flex flex-col gap-4">
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
-            <div className="px-6 py-5 border-b border-gray-200">
-              <h3 className="text-lg font-bold text-gray-800 m-0">筛选配置</h3>
-            </div>
-
-            <div className="p-6 max-h-[calc(100vh-240px)] overflow-y-auto relative">
+      <Row gutter={24} style={{ minHeight: 600 }}>
+        <Col span={8}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <Card 
+              title="筛选配置" 
+              size="small"
+              style={{ height: 'fit-content' }}
+              styles={{ body: { maxHeight: 'calc(100vh - 240px)', overflowY: 'auto' } }}
+            >
               {/* 全局配置 - 放在tab切换上方 */}
               {/* 全局岗位选择器 */}
               <JobSelector
@@ -771,78 +820,65 @@ const Screening = () => {
                 }
               />
 
-              <div className="mb-5">
-                <label className="block text-sm font-bold text-gray-600 mb-2">返回数量 (Top K)</label>
-                <input
-                  type="number"
-                  className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm text-gray-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  value={topK}
-                  onChange={(e) => setTopK(parseInt(e.target.value) || 5)}
+              <div style={{ marginBottom: 20 }}>
+                <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>返回数量 (Top K)</Typography.Text>
+                <InputNumber
+                  style={{ width: '100%' }}
                   min={1}
                   max={20}
+                  value={topK}
+                  onChange={(value) => setTopK(value || 5)}
                 />
               </div>
 
-              <div className="mb-5">
-                <label className="block text-sm font-bold text-gray-600 mb-2">评估模型</label>
-                <select
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-md text-sm bg-white text-gray-800 cursor-pointer focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              <div style={{ marginBottom: 20 }}>
+                <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>评估模型</Typography.Text>
+                <Select
+                  style={{ width: '100%' }}
                   value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                >
-                  {models.map((model) => (
-                    <option key={model.value} value={model.value}>
-                      {model.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSelectedModel}
+                  options={models.map(model => ({
+                    value: model.value,
+                    label: model.label
+                  }))}
+                />
               </div>
 
-              <div className="mb-5">
-                <label className="block text-sm font-bold text-gray-600 mb-2">上传时间段</label>
-                <select
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-md text-sm bg-white text-gray-800 cursor-pointer focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              <div style={{ marginBottom: 20 }}>
+                <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>上传时间段</Typography.Text>
+                <Select
+                  style={{ width: '100%' }}
                   value={timeRange}
-                  onChange={(e) => setTimeRange(parseInt(e.target.value))}
-                >
-                  <option value={1}>1天内</option>
-                  <option value={3}>3天内</option>
-                  <option value={7}>7天内</option>
-                  <option value={30}>30天内</option>
-                  <option value={0}>所有时间</option>
-                </select>
+                  onChange={setTimeRange}
+                  options={[
+                    { value: 1, label: '1天内' },
+                    { value: 3, label: '3天内' },
+                    { value: 7, label: '7天内' },
+                    { value: 30, label: '30天内' },
+                    { value: 0, label: '所有时间' }
+                  ]}
+                />
               </div>
 
-              <div className="mb-5">
-                <div className="flex items-center justify-between">
-                  <label className="block text-sm font-bold text-gray-600 mb-0">只筛选未评估的</label>
-                  <div 
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full cursor-pointer transition-colors ${
-                      onlyUnscreened ? 'bg-indigo-500' : 'bg-gray-200'
-                    }`}
-                    onClick={() => setOnlyUnscreened(!onlyUnscreened)}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        onlyUnscreened ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </div>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Typography.Text strong style={{ margin: 0 }}>只筛选未评估的</Typography.Text>
+                  <Switch
+                    checked={onlyUnscreened}
+                    onChange={setOnlyUnscreened}
+                  />
                 </div>
-                <span className="block text-xs text-gray-500 mt-1 italic">
+                <Typography.Text type="secondary" style={{ fontSize: '12px', display: 'block', marginTop: 4 }}>
                   只筛选之前未被AI评估过的简历
-                </span>
+                </Typography.Text>
               </div>
 
-              <div className="mb-5">
-                <label className="block text-sm font-bold text-gray-600 mb-2">筛选方式</label>
-                <div className="flex gap-2">
-                  <button
-                    className={`flex-1 py-2.5 px-4 border-none rounded-md cursor-pointer text-sm font-medium transition-all duration-200 ${
-                      useJobId 
-                        ? 'bg-indigo-500 text-white' 
-                        : 'bg-gray-100 text-gray-800'
-                    }`}
+              <div style={{ marginBottom: 20 }}>
+                <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>筛选方式</Typography.Text>
+                <Space.Compact style={{ width: '100%' }}>
+                  <Button
+                    type={useJobId ? 'primary' : 'default'}
+                    style={{ flex: 1 }}
                     onClick={() => {
                       setUseJobId(true);
                       setJobDescription('');
@@ -862,13 +898,10 @@ const Screening = () => {
                     }}
                   >
                     岗位筛选
-                  </button>
-                  <button
-                    className={`flex-1 py-2.5 px-4 border-none rounded-md cursor-pointer text-sm font-medium transition-all duration-200 ${
-                      !useJobId 
-                        ? 'bg-indigo-500 text-white' 
-                        : 'bg-gray-100 text-gray-800'
-                    }`}
+                  </Button>
+                  <Button
+                    type={!useJobId ? 'primary' : 'default'}
+                    style={{ flex: 1 }}
                     onClick={() => {
                       setUseJobId(false);
                       setSelectedJob(null);
@@ -882,165 +915,136 @@ const Screening = () => {
                     }}
                   >
                     自定义描述
-                  </button>
-                </div>
+                  </Button>
+                </Space.Compact>
               </div>
 
               {!useJobId && (
-                <div className="mb-5">
-                  <label className="block text-sm font-bold text-gray-600 mb-2">职位描述</label>
-                  <textarea
-                    className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm text-gray-800 font-sans resize-vertical focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                <div style={{ marginBottom: 20 }}>
+                  <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>职位描述</Typography.Text>
+                  <Input.TextArea
                     placeholder="请输入详细的职位描述，包括岗位要求、技能要求等..."
                     value={jobDescription}
                     onChange={(e) => setJobDescription(e.target.value)}
-                    rows={10}
+                    rows={6}
+                    style={{ resize: 'vertical' }}
                   />
                 </div>
               )}
 
-              {error && <div className="px-3.5 py-2.5 bg-red-50 text-red-500 rounded-md text-sm mb-4">{error}</div>}
+              {error && <Alert message={error} type="error" style={{ marginBottom: 16 }} />}
 
               <div ref={startScreenButtonRef}>
-                <button
-                  className="w-full py-3 bg-indigo-500 text-white border-none rounded-md cursor-pointer text-base font-bold transition-colors duration-200 disabled:opacity-50"
+                <Button
+                  type="primary"
+                  size="large"
+                  icon={<SearchOutlined />}
+                  loading={loading}
                   onClick={handleScreen}
-                  disabled={loading}
+                  style={{ width: '100%' }}
+                  block
                 >
                   {loading ? '筛选中...' : '开始筛选'}
-                </button>
+                </Button>
               </div>
 
               {currentProgress && (
-                <div className="mt-4">
-                  <div className="text-sm text-gray-600 mb-2">
+                <div style={{ marginTop: 16 }}>
+                  <Typography.Text style={{ display: 'block', marginBottom: 8, fontSize: '14px' }}>
                     正在评估: <strong>{currentProgress.filename}</strong>
                     ({currentProgress.current}/{currentProgress.total})
-                  </div>
-                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-indigo-500 transition-all duration-300 ease-in-out"
-                      style={{ width: `${(currentProgress.current / currentProgress.total) * 100}%` }}
-                    />
-                  </div>
+                  </Typography.Text>
+                  <Progress
+                    percent={Math.round((currentProgress.current / currentProgress.total) * 100)}
+                    status="active"
+                    strokeColor={{ '0%': '#108ee9', '100%': '#87d068' }}
+                  />
                 </div>
               )}
-            </div>
+            </Card>
           </div>
 
           {useJobId && selectedJob && (
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden sticky top-20 max-h-[calc(100vh-120px)] overflow-y-auto z-10 border border-gray-200">
-              <div className="px-6 py-5 border-b border-gray-200">
-                <h3 className="text-lg font-bold text-gray-800 m-0">岗位信息</h3>
-              </div>
-              <div className="p-6">
-                <div className="flex flex-col gap-3">
-                  <div className="text-lg font-bold text-gray-800">{selectedJob.title}</div>
-                  <div className="flex gap-4 text-sm text-gray-500">
-                    {selectedJob.location && (
-                      <span className="text-sm">📍 {selectedJob.location}</span>
-                    )}
-                    {selectedJob.salary_range && (
-                      <span className="text-sm">💰 {selectedJob.salary_range}</span>
-                    )}
-                  </div>
-                  <div className="mt-3">
-                    <h4 className="text-sm font-bold text-gray-600 mb-2">岗位描述</h4>
-                    <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{selectedJob.description}</p>
-                  </div>
-                  {selectedJob.requirements && (
-                    <div className="mt-2">
-                      <h4 className="text-sm font-bold text-gray-600 mb-2">岗位要求</h4>
-                      <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{selectedJob.requirements}</p>
-                    </div>
+            <Card 
+              title="岗位信息" 
+              size="small"
+              style={{ 
+                position: 'sticky',
+                top: 80,
+                maxHeight: 'calc(100vh - 120px)',
+                overflowY: 'auto',
+                zIndex: 10
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <Typography.Title level={4} style={{ margin: 0 }}>{selectedJob.title}</Typography.Title>
+                <Space>
+                  {selectedJob.location && (
+                    <Typography.Text type="secondary">📍 {selectedJob.location}</Typography.Text>
                   )}
+                  {selectedJob.salary_range && (
+                    <Typography.Text type="secondary">💰 {selectedJob.salary_range}</Typography.Text>
+                  )}
+                </Space>
+                <div style={{ marginTop: 12 }}>
+                  <Typography.Text strong>岗位描述</Typography.Text>
+                  <Typography.Paragraph style={{ marginTop: 8, fontSize: '13px' }}>
+                    {selectedJob.description}
+                  </Typography.Paragraph>
                 </div>
+                {selectedJob.requirements && (
+                  <div style={{ marginTop: 8 }}>
+                    <Typography.Text strong>岗位要求</Typography.Text>
+                    <Typography.Paragraph style={{ marginTop: 8, fontSize: '13px' }}>
+                      {selectedJob.requirements}
+                    </Typography.Paragraph>
+                  </div>
+                )}
               </div>
-            </div>
+            </Card>
           )}
-        </div>
+        </Col>
 
-        <div style={styles.rightPanel}>
-          <div style={styles.card}>
-            <div style={styles.cardHeader}>
-              <div style={styles.cardHeaderRow}>
-                <h3 style={styles.cardTitle}>
+        <Col span={16}>
+          <Card 
+            title={
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>
                   {showHistory ? '历史记录' : '筛选结果'} 
                   {showHistory && filteredHistoryResults.length > 0 && ` (${filteredHistoryResults.length}/${historyResults.length})`}
                   {!showHistory && results.length > 0 && ` (${results.length})`}
-                </h3>
-                <div style={styles.headerActions}>
-                  {/* 按钮容器 - 水平布局 */}
-                  <div style={styles.buttonGroup}>
-                    {/* 导出功能 - 带下拉菜单 */}
-                    {((showHistory && filteredHistoryResults.length > 0) || (!showHistory && results.length > 0)) && (
-                      <div style={styles.exportButtonContainer}>
-                        <div 
-                          style={styles.exportButtonWrapper}
-                          onMouseEnter={() => setShowExportDropdown(true)}
-                          onMouseLeave={() => setShowExportDropdown(false)}
-                        >
-                          <button 
-                            style={{
-                              ...styles.exportButton,
-                              ...(selectedResults.length === 0 ? styles.exportButtonDisabled : {})
-                            }}
-                            onClick={handleExportResults}
-                            disabled={selectedResults.length === 0}
-                          >
-                            导出选中 ({selectedResults.length})
-                          </button>
-                          {showExportDropdown && (
-                            <div style={styles.exportDropdown}>
-                              <div 
-                                style={{
-                                  ...styles.exportOption,
-                                  ...(exportType === 'pdf' ? styles.exportOptionSelected : {})
-                                }}
-                                onClick={() => {
-                                  setExportType('pdf');
-                                  setShowExportDropdown(false);
-                                }}
-                              >
-                                📄 PDF格式
-                              </div>
-                              <div 
-                                style={{
-                                  ...styles.exportOption,
-                                  ...(exportType === 'markdown' ? styles.exportOptionSelected : {})
-                                }}
-                                onClick={() => {
-                                  setExportType('markdown');
-                                  setShowExportDropdown(false);
-                                }}
-                              >
-                                📝 Markdown格式
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        <div style={styles.exportTypeHint}>
-                          当前格式: {exportType === 'pdf' ? 'PDF' : 'Markdown'}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* 删除按钮 */}
-                    {showHistory && selectedHistory.length > 0 && (
-                      <button style={styles.batchDeleteButton} onClick={handleBatchDeleteHistory}>
-                        删除选中 ({selectedHistory.length})
-                      </button>
-                    )}
-                  </div>
+                </span>
+                <Space>
+                  {/* 导出功能 */}
+                  {((showHistory && filteredHistoryResults.length > 0) || (!showHistory && results.length > 0)) && (
+                    <Tooltip title={`当前格式: ${exportType === 'pdf' ? 'PDF' : 'Markdown'}`}>
+                      <Button
+                        type="primary"
+                        icon={<DownloadOutlined />}
+                        onClick={handleExportResults}
+                        disabled={selectedResults.length === 0}
+                      >
+                        导出选中 ({selectedResults.length})
+                      </Button>
+                    </Tooltip>
+                  )}
+                  
+                  {/* 删除按钮 */}
+                  {showHistory && selectedHistory.length > 0 && (
+                    <Button
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={handleBatchDeleteHistory}
+                    >
+                      删除选中 ({selectedHistory.length})
+                    </Button>
+                  )}
                   
                   {/* 历史/新结果切换按钮 */}
                   {selectedJob && (historyResults.length > 0 || results.length > 0) && (
-                    <button
-                      style={{
-                        ...styles.historyToggle,
-                        backgroundColor: showHistory ? '#667eea' : '#f5f5f5',
-                        color: showHistory ? 'white' : '#333'
-                      }}
+                    <Button
+                      type={showHistory ? 'primary' : 'default'}
+                      icon={showHistory ? <EyeOutlined /> : <HistoryOutlined />}
                       onClick={() => {
                         setShowHistory(!showHistory);
                         setSelectedResults([]);
@@ -1048,12 +1052,20 @@ const Screening = () => {
                       }}
                     >
                       {showHistory ? '查看新结果' : '查看历史'}
-                    </button>
+                    </Button>
                   )}
-                </div>
+                </Space>
               </div>
-            </div>
-            <div style={styles.cardBody}>
+            }
+            style={{ height: '100%' }}
+            styles={{ 
+              body: { 
+                maxHeight: 'calc(100vh - 240px)', 
+                overflowY: 'auto',
+                padding: '24px'
+              }
+            }}
+          >
               {/* 粘性标题 - 在右侧面板内部 */}
               {stickyTitle && (
                 <div style={styles.stickyTitleBar}>
@@ -1202,8 +1214,8 @@ const Screening = () => {
                                   style={styles.collapseButton}
                                   onClick={() => toggleExpand(`history-${result.result_id}`, result.filename || '未知文件名')}
                                 >
-                                    ▲ 收起
-                                  </button>
+                                  ▲ 收起
+                                </button>
                                 </div>
                                 <div style={styles.evaluationContent}>
                                   <ReactMarkdown
@@ -1338,10 +1350,9 @@ const Screening = () => {
                   </div>
                 );
               })()}
-            </div>
-          </div>
-        </div>
-      </div>
+            </Card>
+        </Col>
+      </Row>
 
       {/* PDF预览模态框 */}
       {previewResume && (
@@ -1985,8 +1996,8 @@ const styles = {
   },
 };
 
-const style = document.createElement('style');
-style.textContent = `
+// CSS动画样式
+const animationStyles = `
   @keyframes fadeIn {
     from {
       opacity: 0;
@@ -1998,9 +2009,5 @@ style.textContent = `
     }
   }
 `;
-if (!document.querySelector('style[data-animations]')) {
-  style.setAttribute('data-animations', 'true');
-  document.head.appendChild(style);
-}
 
 export default Screening;

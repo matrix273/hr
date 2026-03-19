@@ -457,7 +457,9 @@ const styles = {
     cursor: 'pointer',
     fontSize: '12px',
     transition: 'all 0.2s',
-    border: '1px solid #d0d0d0',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: '#d0d0d0',
     backgroundColor: 'white',
   },
   customCheckboxChecked: {

@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Layout, Button, Typography, Space, message } from 'antd';
+import { LogoutOutlined } from '@ant-design/icons';
 import ResumeUpload from './ResumeUpload';
 import ResumeList from '../components/ResumeList';
 import JobManagement from './JobManagement';
 import Screening from './Screening';
 import UserManagement from './UserManagement';
 import Sidebar from '../components/Sidebar';
+
+const { Header, Content, Sider } = Layout;
+const { Title, Text } = Typography;
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -21,6 +26,7 @@ const Dashboard = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     navigate('/');
+    message.success('已退出登录');
   };
 
   const handleUploadSuccess = (data) => {
@@ -36,26 +42,57 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <nav className="bg-white shadow-sm px-8 py-4 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto w-full flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-indigo-500 m-0">AI 简历筛选系统</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">欢迎, {user.username || '用户'}</span>
-            <button 
-              className="px-4 py-2 bg-red-500 text-white border-none rounded-md cursor-pointer text-sm font-bold transition-colors duration-200 hover:bg-red-600"
+    <Layout style={{ minHeight: '100vh', background: '#f5f5f5' }}>
+      <Header style={{ 
+        background: 'white', 
+        padding: '0 32px',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 1000
+      }}>
+        <div style={{ 
+          maxWidth: '100%', 
+          width: '100%', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          height: '64px'
+        }}>
+          <Title level={3} style={{ margin: 0, color: '#4f46e5' }}>
+            AI 简历筛选系统
+          </Title>
+          <Space>
+            <Text>欢迎, {user.username || '用户'}</Text>
+            <Button 
+              type="primary" 
+              danger
+              icon={<LogoutOutlined />}
               onClick={handleLogout}
+              size="middle"
             >
               退出登录
-            </button>
-          </div>
+            </Button>
+          </Space>
         </div>
-      </nav>
+      </Header>
 
-      <div className="flex flex-1">
-        <Sidebar activeItem={activeTab} onItemClick={handleSidebarClick} />
+      <Layout>
+        <Sider 
+          width={200} 
+          style={{ 
+            background: 'white',
+            boxShadow: '2px 0 8px rgba(0, 0, 0, 0.1)'
+          }}
+        >
+          <Sidebar activeItem={activeTab} onItemClick={handleSidebarClick} />
+        </Sider>
 
-        <main className="flex-1 p-8 overflow-y-auto">
+        <Content style={{ 
+          padding: '32px', 
+          overflowY: 'auto',
+          background: '#f5f5f5'
+        }}>
           {activeTab === 'upload' && (
             <ResumeUpload onUploadSuccess={handleUploadSuccess} />
           )}
@@ -77,15 +114,23 @@ const Dashboard = () => {
           )}
 
           {activeTab === 'analysis' && (
-            <div className="bg-white rounded-xl p-16 text-center shadow-sm">
-              <div className="text-6xl mb-6">📊</div>
-              <h3 className="text-2xl font-bold text-gray-800 mb-3">数据分析</h3>
-              <p className="text-base text-gray-500">功能开发中...</p>
+            <div style={{ 
+              background: 'white', 
+              borderRadius: '12px', 
+              padding: '64px', 
+              textAlign: 'center',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+            }}>
+              <div style={{ fontSize: '96px', marginBottom: '24px' }}>📊</div>
+              <Title level={3} style={{ color: '#262626', marginBottom: '12px' }}>
+                数据分析
+              </Title>
+              <Text style={{ color: '#666', fontSize: '16px' }}>功能开发中...</Text>
             </div>
           )}
-        </main>
-      </div>
-    </div>
+        </Content>
+      </Layout>
+    </Layout>
   );
 };
 
