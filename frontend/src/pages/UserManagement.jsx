@@ -248,7 +248,7 @@ const UserManagement = () => {
   ];
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ minHeight: '100vh' }}>
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <Title level={2} style={{ margin: 0, color: '#262626' }}>用户管理</Title>

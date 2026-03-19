@@ -219,7 +219,7 @@ const ResumeUpload = ({ onUploadSuccess }) => {
   };
 
   return (
-    <div style={{ padding: '24px', background: '#f5f5f5', minHeight: '100vh' }}>
+    <div style={{ minHeight: '100vh' }}>
       {/* 头部 */}
       <div style={{ 
         display: 'flex', 
@@ -289,7 +289,6 @@ const ResumeUpload = ({ onUploadSuccess }) => {
             padding: '48px 24px',
             textAlign: 'center',
             background: error ? '#fff2f0' : isDragging ? '#f0f8ff' : '#fafafa',
-            cursor: 'pointer',
             transition: 'all 0.3s'
           }}
           onDragOver={handleDragOver}
@@ -316,6 +315,7 @@ const ResumeUpload = ({ onUploadSuccess }) => {
                   multiple
                   onChange={handleFileSelect}
                   style={{ display: 'none' }}
+                  id="file-input"
                 />
                 点击选择（支持多选）
               </label>

@@ -131,7 +131,7 @@ const JobManagement = () => {
   }
 
   return (
-    <div style={{ padding: '24px', background: '#f5f5f5', minHeight: '100vh' }}>
+    <div style={{ minHeight: '100vh' }}>
       {/* 头部 */}
       <div style={{ 
         display: 'flex', 

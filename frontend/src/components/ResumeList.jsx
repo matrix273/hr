@@ -8,6 +8,9 @@ import {
   shouldShowElement,
   getPermissionHint 
 } from '../utils/permissions';
+import { Typography } from 'antd';
+
+const { Title } = Typography;
 
 const ResumeList = ({ onUploadSuccess }) => {
   const [resumes, setResumes] = useState([]);
@@ -202,7 +205,7 @@ const ResumeList = ({ onUploadSuccess }) => {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h2 style={styles.title}>简历管理</h2>
+        <Title level={2} style={{ margin: 0, color: '#262626' }}>简历管理</Title>
         <div style={styles.headerActions}>
           {shouldShowElement(Permission.RESUME_DELETE) && selectedResumes.length > 0 && (
             <button 
@@ -366,6 +369,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '16px',
+    minHeight: '100vh',
   },
   header: {
     display: 'flex',
