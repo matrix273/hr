@@ -123,6 +123,8 @@ const Register = () => {
             name="username"
             label="用户名"
             rules={[{ required: true, message: '请输入用户名' }]}
+            style={{ marginBottom: 12 }}
+            labelCol={{ style: { paddingBottom: 4 } }}
           >
             <Input placeholder="请输入用户名" />
           </Form.Item>
@@ -134,6 +136,8 @@ const Register = () => {
               { required: true, message: '请输入邮箱' },
               { type: 'email', message: '请输入有效的邮箱格式' }
             ]}
+            style={{ marginBottom: 12 }}
+            labelCol={{ style: { paddingBottom: 4 } }}
           >
             <Input placeholder="请输入邮箱" />
           </Form.Item>
@@ -142,6 +146,8 @@ const Register = () => {
             name="full_name"
             label="姓名"
             rules={[{ required: true, message: '请输入真实姓名' }]}
+            style={{ marginBottom: 12 }}
+            labelCol={{ style: { paddingBottom: 4 } }}
           >
             <Input placeholder="请输入真实姓名" />
           </Form.Item>
@@ -153,6 +159,8 @@ const Register = () => {
               { required: true, message: '请输入密码' },
               { min: 6, message: '密码长度至少6位' }
             ]}
+            style={{ marginBottom: 12 }}
+            labelCol={{ style: { paddingBottom: 4 } }}
           >
             <Input.Password placeholder="请输入密码（至少6位）" />
           </Form.Item>
@@ -172,6 +180,8 @@ const Register = () => {
                 },
               }),
             ]}
+            style={{ marginBottom: 12 }}
+            labelCol={{ style: { paddingBottom: 4 } }}
           >
             <Input.Password placeholder="请再次输入密码" />
           </Form.Item>
@@ -180,6 +190,8 @@ const Register = () => {
             name="role"
             label="角色"
             rules={[{ required: true, message: '请选择角色' }]}
+            style={{ marginBottom: 12 }}
+            labelCol={{ style: { paddingBottom: 4 } }}
           >
             <Select placeholder="请选择角色">
               {availableRoles.map((role) => (

@@ -88,6 +88,8 @@ const Login = () => {
             name="username"
             label="用户名"
             rules={[{ required: true, message: '请输入用户名' }]}
+            style={{ marginBottom: 12 }}
+            labelCol={{ style: { paddingBottom: 4 } }}
           >
             <Input placeholder="请输入用户名" />
           </Form.Item>
@@ -96,6 +98,8 @@ const Login = () => {
             name="password"
             label="密码"
             rules={[{ required: true, message: '请输入密码' }]}
+            style={{ marginBottom: 12 }}
+            labelCol={{ style: { paddingBottom: 4 } }}
           >
             <Input.Password placeholder="请输入密码" />
           </Form.Item>
