@@ -326,7 +326,9 @@ const JobManagement = () => {
                   borderRadius: '8px',
                   transition: 'all 0.3s'
                 }}
-                bodyStyle={{ padding: '16px' }}
+                styles={{
+                  body: { padding: '16px' }
+                }}
               >
                 <div style={{ 
                   display: 'flex', 

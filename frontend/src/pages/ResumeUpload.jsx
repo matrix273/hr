@@ -235,7 +235,9 @@ const ResumeUpload = ({ onUploadSuccess }) => {
       {/* 上传区域 */}
       <Card 
         style={{ marginBottom: '24px' }}
-        bodyStyle={{ padding: '24px' }}
+        styles={{
+          body: { padding: '24px' }
+        }}
       >
         {/* 岗位选择器 */}
         <div style={{ marginBottom: '24px' }}>
