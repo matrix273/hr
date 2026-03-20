@@ -198,12 +198,24 @@ const Screening = () => {
     }
     
     // 处理历史记录（同时处理导出和删除）
-    if (selectedResults.includes(resumeId)) {
-      setSelectedResults(selectedResults.filter(id => id !== resumeId));
+    // 注意：同一个简历可能被多次筛选，所以需要根据result_id来判断是否选中
+    if (selectedHistory.includes(resultId)) {
+      // 如果已选中，则取消选中
       setSelectedHistory(selectedHistory.filter(id => id !== resultId));
+      // 同时从导出列表中移除该简历（如果没有其他选中项包含该简历）
+      const otherSelectedResumeIds = filteredHistoryResults
+        .filter(r => selectedHistory.includes(r.result_id) && r.result_id !== resultId)
+        .map(r => r.resume_id);
+      if (!otherSelectedResumeIds.includes(resumeId)) {
+        setSelectedResults(selectedResults.filter(id => id !== resumeId));
+      }
     } else {
-      setSelectedResults([...selectedResults, resumeId]);
+      // 如果未选中，则选中
       setSelectedHistory([...selectedHistory, resultId]);
+      // 同时添加到导出列表（避免重复）
+      if (!selectedResults.includes(resumeId)) {
+        setSelectedResults([...selectedResults, resumeId]);
+      }
     }
   };
 
@@ -226,19 +238,31 @@ const Screening = () => {
 
   // 导出结果功能
   const handleExportResults = async () => {
-    if (selectedResults.length === 0) {
+    // 根据当前视图获取正确的选中数据
+    let currentSelectedData = [];
+    
+    if (showHistory) {
+      // 历史记录视图：只导出历史记录中选中的项
+      currentSelectedData = filteredHistoryResults.filter(r => 
+        selectedHistory.includes(r.result_id)
+      );
+    } else {
+      // 新结果视图：只导出新结果中选中的项
+      currentSelectedData = results.filter(r => 
+        selectedResults.includes(r.resume_id)
+      );
+    }
+    
+    if (currentSelectedData.length === 0) {
       setError('请先选择要导出的结果');
       return;
     }
 
-    const currentResults = showHistory ? filteredHistoryResults : results;
-    const selectedData = currentResults.filter(r => selectedResults.includes(r.resume_id));
-
     try {
       if (exportType === 'pdf') {
-        await exportToPDF(selectedData);
+        await exportToPDF(currentSelectedData);
       } else {
-        await exportToMarkdown(selectedData);
+        await exportToMarkdown(currentSelectedData);
       }
     } catch (error) {
       setError('导出失败：' + error.message);
@@ -445,6 +469,7 @@ const Screening = () => {
 
   const models = [
     { value: 'qwen-plus', label: '通义千问 Qwen Plus (推荐)' },
+    { value: 'Doubao-pro-32k', label: '字节豆包 Doubao Pro' },
     { value: 'deepseek-chat', label: 'DeepSeek Chat' }
   ];
 
@@ -745,7 +770,11 @@ const Screening = () => {
   const handleViewResume = async (resumeId, filename) => {
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch(`http://localhost:8000/api/resumes/${resumeId}/file?token=${token}`);
+      const response = await fetch(`http://localhost:8000/api/resumes/${resumeId}/file`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (response.ok) {
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
@@ -1047,8 +1076,11 @@ const Screening = () => {
                       icon={showHistory ? <EyeOutlined /> : <HistoryOutlined />}
                       onClick={() => {
                         setShowHistory(!showHistory);
+                        // 切换视图时清空所有选中状态
                         setSelectedResults([]);
+                        setSelectedHistory([]);
                         setSelectAllResults(false);
+                        setSelectAllHistory(false);
                       }}
                     >
                       {showHistory ? '查看新结果' : '查看历史'}

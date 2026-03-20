@@ -39,7 +39,7 @@ def setup_celery_logging():
     
     # 添加 Loguru 处理器
     handler = CeleryLoguruHandler()
-    handler.setLevel(logging.DEBUG)
+    handler.setLevel(logging.WARNING)  # 只记录 WARNING 及以上级别的 Celery 内部日志
     
     formatter = logging.Formatter('%(message)s')
     handler.setFormatter(formatter)

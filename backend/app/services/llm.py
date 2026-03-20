@@ -152,7 +152,8 @@ class LLMClient:
                 }
             ],
             "temperature": 0.3,  # 适当的随机性
-            "stream": False
+            "stream": False,
+            "max_tokens": 2000   # 增加输出长度限制，确保完整评估结果
         }
 
         headers = {
@@ -169,40 +170,144 @@ class LLMClient:
                     f"请求大小={request_size:,} 字节 ({request_size/1024:.2f} KB), "
                     f"prompt字符数={len(prompt):,}")
 
-        try:
-            request_start = time.time()
-            response = self.client.post(
-                model_config["url"],
-                json=payload,
-                headers=headers,
-                timeout=httpx.Timeout(
-                    connect=10.0,
-                    read=180.0,  # 增加到 3 分钟
-                    write=10.0,
-                    pool=5.0
+        # 添加重试机制
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                request_start = time.time()
+                # 使用合理的超时时间，给云端LLM服务足够的响应时间
+                response = self.client.post(
+                    model_config["url"],
+                    json=payload,
+                    headers=headers,
+                    timeout=httpx.Timeout(
+                        connect=15.0,   # 连接超时15秒
+                        read=120.0,     # 读取超时120秒，给云端LLM足够时间
+                        write=10.0,
+                        pool=10.0
+                    )
                 )
-            )
-            request_time = time.time() - request_start
-            logger.info(f"LLM HTTP 请求耗时: {request_time:.2f} 秒")
+                request_time = time.time() - request_start
+                logger.info(f"LLM HTTP 请求耗时: {request_time:.2f} 秒")
 
-            response.raise_for_status()
-            result = response.json()
+                response.raise_for_status()
+                result = response.json()
 
-            response_size = len(str(result).encode('utf-8'))
-            total_time = time.time() - start_time
-            logger.info(f"LLM 响应: 大小={response_size:,} 字节 ({response_size/1024:.2f} KB), "
-                        f"总耗时={total_time:.2f} 秒")
+                response_size = len(str(result).encode('utf-8'))
+                total_time = time.time() - start_time
+                logger.info(f"LLM 响应: 大小={response_size:,} 字节 ({response_size/1024:.2f} KB), "
+                            f"总耗时={total_time:.2f} 秒")
 
-            return result
-        except httpx.TimeoutException as e:
-            total_time = time.time() - start_time
-            logger.error(f"LLM API 请求超时 (已耗时 {total_time:.2f} 秒): {model_config['url']}, 错误: {e}")
-            raise Exception(f"LLM API 请求超时: {model_config['url']}, 错误: {e}")
-        except httpx.HTTPStatusError as e:
-            total_time = time.time() - start_time
-            logger.error(f"LLM API 返回错误 (已耗时 {total_time:.2f} 秒): {e.response.status_code}, 响应: {e.response.text}")
-            raise Exception(f"LLM API 返回错误: {e.response.status_code}, 响应: {e.response.text}")
-        except httpx.RequestError as e:
-            total_time = time.time() - start_time
-            logger.error(f"LLM API 请求失败 (已耗时 {total_time:.2f} 秒): {e}")
-            raise Exception(f"LLM API 请求失败: {e}")
+                return result
+                
+            except httpx.TimeoutException as e:
+                total_time = time.time() - start_time
+                if attempt < max_retries:
+                    logger.warning(f"LLM API 请求超时，重试 {attempt + 1}/{max_retries} (已耗时 {total_time:.2f} 秒)")
+                    time.sleep(2)  # 等待2秒后重试
+                    continue
+                else:
+                    logger.error(f"LLM API 请求超时 (已耗时 {total_time:.2f} 秒): {model_config['url']}, 错误: {e}")
+                    raise Exception(f"LLM API 请求超时: {model_config['url']}, 错误: {e}")
+                    
+            except httpx.HTTPStatusError as e:
+                total_time = time.time() - start_time
+                logger.error(f"LLM API 返回错误 (已耗时 {total_time:.2f} 秒): {e.response.status_code}, 响应: {e.response.text}")
+                raise Exception(f"LLM API 返回错误: {e.response.status_code}, 响应: {e.response.text}")
+                
+            except httpx.RequestError as e:
+                total_time = time.time() - start_time
+                error_str = str(e)
+                
+                # 针对云端LLM服务的不稳定连接进行特殊处理
+                if attempt < max_retries:
+                    if "peer closed connection" in error_str:
+                        logger.warning(f"LLM API 连接被对端关闭，重试 {attempt + 1}/{max_retries} (已耗时 {total_time:.2f} 秒)")
+                        time.sleep(3)  # 等待3秒后重试
+                        continue
+                    elif "connection" in error_str.lower():
+                        logger.warning(f"LLM API 连接问题，重试 {attempt + 1}/{max_retries} (已耗时 {total_time:.2f} 秒)")
+                        time.sleep(2)  # 等待2秒后重试
+                        continue
+                
+                logger.error(f"LLM API 请求失败 (已耗时 {total_time:.2f} 秒): {error_str}")
+                raise Exception(f"LLM API 请求失败: {error_str}")
+
+    def parse_evaluation_result(self, llm_result: Dict[str, Any]) -> Dict[str, Any]:
+        """解析 LLM 评估结果
+        
+        Args:
+            llm_result: LLM API 返回的原始结果
+            
+        Returns:
+            解析后的评估结果
+        """
+        try:
+            # 获取 LLM 返回的内容
+            content = llm_result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            
+            # 初始化默认结果
+            evaluation_result = {
+                "matching_score": 0,
+                "skills_analysis": "",
+                "experience_analysis": "",
+                "education_analysis": "",
+                "strengths": "",
+                "weaknesses": "",
+                "suggestions": "",
+                "overall_evaluation": content
+            }
+            
+            # 解析匹配度评分
+            import re
+            score_match = re.search(r'(?:匹配度|评分|score)[：:\s]*([0-9]{1,3})', content, re.IGNORECASE)
+            if score_match:
+                evaluation_result["matching_score"] = int(score_match.group(1))
+            
+            # 解析技能匹配分析
+            skills_match = re.search(r'(?:技能匹配|技能分析|技能)[：:\s]*(.+?)(?=\n\d|\.\s*$|\n\s*\d|$)', content, re.DOTALL)
+            if skills_match:
+                evaluation_result["skills_analysis"] = skills_match.group(1).strip()
+            
+            # 解析经验匹配分析
+            experience_match = re.search(r'(?:经验匹配|经验分析|经验)[：:\s]*(.+?)(?=\n\d|\.\s*$|\n\s*\d|$)', content, re.DOTALL)
+            if experience_match:
+                evaluation_result["experience_analysis"] = experience_match.group(1).strip()
+            
+            # 解析教育背景分析
+            education_match = re.search(r'(?:教育背景|教育分析|教育)[：:\s]*(.+?)(?=\n\d|\.\s*$|\n\s*\d|$)', content, re.DOTALL)
+            if education_match:
+                evaluation_result["education_analysis"] = education_match.group(1).strip()
+            
+            # 解析优势
+            strengths_match = re.search(r'(?:优势|优点)[：:\s]*(.+?)(?=\n\d|\.\s*$|\n\s*\d|$)', content, re.DOTALL)
+            if strengths_match:
+                evaluation_result["strengths"] = strengths_match.group(1).strip()
+            
+            # 解析劣势
+            weaknesses_match = re.search(r'(?:劣势|缺点|不足)[：:\s]*(.+?)(?=\n\d|\.\s*$|\n\s*\d|$)', content, re.DOTALL)
+            if weaknesses_match:
+                evaluation_result["weaknesses"] = weaknesses_match.group(1).strip()
+            
+            # 解析建议
+            suggestions_match = re.search(r'(?:建议|改进)[：:\s]*(.+?)(?=\n\d|\.\s*$|\n\s*\d|$)', content, re.DOTALL)
+            if suggestions_match:
+                evaluation_result["suggestions"] = suggestions_match.group(1).strip()
+            
+            return evaluation_result
+            
+        except Exception as e:
+            from ..utils.logger import logger
+            logger.error(f"解析 LLM 评估结果失败: {e}")
+            
+            # 返回默认结果
+            return {
+                "matching_score": 0,
+                "skills_analysis": "解析失败",
+                "experience_analysis": "解析失败",
+                "education_analysis": "解析失败",
+                "strengths": "",
+                "weaknesses": "",
+                "suggestions": "",
+                "overall_evaluation": "评估结果解析失败，请查看原始响应"
+            }

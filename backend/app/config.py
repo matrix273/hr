@@ -89,6 +89,11 @@ LLM_PROVIDERS = {
         "api_key": os.getenv("DEEPSEEK_LLM_API_KEY", "not_required"),
         "model": os.getenv("DEEPSEEK_LLM_MODEL", "Qwen3.5-0.8B")
     },
+    "Doubao-pro-32k": {
+        "url": os.getenv("DOUBAO_LLM_URL", "http://localhost:8002/v1/chat/completions"),
+        "api_key": os.getenv("DOUBAO_LLM_API_KEY", "not_required"),
+        "model": os.getenv("DOUBAO_LLM_MODEL", "Doubao-pro-32k")
+    },
     "Qwen3.5-0.8B": {
         "url": "http://localhost:8002/v1/chat/completions",
         "api_key": "not_required",

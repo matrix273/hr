@@ -115,6 +115,7 @@ class ScreeningResult(Base):
     raw_score = Column(Float, nullable=False, comment="原始Rerank得分")
     rank = Column(Integer, nullable=False, comment="排名")
     llm_evaluation = Column(Text, nullable=False, comment="LLM评估内容")
+    matching_score = Column(Float, default=0.0, comment="LLM匹配度评分")
     user_id = Column(String(50), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

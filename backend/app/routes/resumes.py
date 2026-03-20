@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 from ..utils.pdf_parser import parse_pdf, clean_text
 from ..models.schemas import ResumeUploadResponse
-from ..models.user import Resume
+from ..models.user import Resume, Job
 from ..utils.logger import logger
 from ..auth import get_current_user_from_token, get_current_active_user, Permission
 from ..database import get_db
@@ -386,14 +386,12 @@ async def list_resumes(
 @router.get("/{resume_id}/file")
 async def get_resume_file(
     resume_id: str,
-    token: Optional[str] = None,
     current_user: dict = Depends(get_current_user_from_token)
 ):
     """获取简历 PDF 文件
 
     Args:
         resume_id: 简历 ID
-        token: 可选的 token 参数（用于 iframe 访问）
         current_user: 当前用户
 
     Returns:

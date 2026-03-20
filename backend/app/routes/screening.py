@@ -26,6 +26,7 @@ from ..auth import get_current_active_user, Permission
 from ..database import get_db
 from ..core.system import ResumeScreeningSystem
 from ..auth.rbac import check_permission
+from ..tasks import evaluate_resume_with_llm
 
 router = APIRouter(prefix="/api/screening", tags=["Screening"])
 
@@ -110,6 +111,8 @@ async def screen_resumes(
             yield f"data: {json.dumps({'type': 'start', 'total': len(reranked)})}\n\n"
 
             # 逐个评估简历并流式返回
+            successful_results = []  # 记录成功的评估结果
+            
             for idx, item in enumerate(reranked):
                 resume_idx = item["index"]
                 resume_info = search_results[resume_idx]
@@ -135,49 +138,80 @@ async def screen_resumes(
                            f"总prompt: {prompt_size:,} 字符, "
                            f"约 {prompt_size/1024/1024:.2f} MB")
 
-                # LLM 评估
-                llm_result = screening_system.llm.evaluate_resume(
+                # 异步调用 LLM 评估任务
+                llm_task = evaluate_resume_with_llm.delay(
+                    resume_info["resume_id"],
                     resume_info["resume_text"],
                     request.job_description,
                     request.model
                 )
-                logger.info(f"简历 {resume_info['resume_id']} LLM 评估完成")
-
-                # 保存筛选结果到数据库（使用特殊的 job_id 标记为自定义筛选）
-                custom_job_id = f"custom_{user_id}_{int(asyncio.get_event_loop().time())}"
-                screening_result = ScreeningResult(
-                    job_id=custom_job_id,
-                    resume_id=resume_id,
-                    model=request.model or "custom",
-                    screening_type="custom",
-                    rerank_score=item["score"],
-                    raw_score=item.get("raw_score", item["score"]),  # 保存原始分数
-                    rank=idx + 1,
-                    llm_evaluation=llm_result["choices"][0]["message"]["content"],
-                    user_id=user_id
-                )
-                db.add(screening_result)
                 
-                # 更新简历的筛选状态
-                resume.is_screened = True
-                
-                await db.commit()
+                # 等待任务完成（设置超时时间）
+                try:
+                    llm_result = llm_task.get(timeout=120)  # 120秒超时，给Qwen足够时间
+                    
+                    if llm_result["success"]:
+                        evaluation_result = llm_result["evaluation_result"]
+                        llm_content = evaluation_result.get("overall_evaluation", "评估完成")
+                        matching_score = evaluation_result.get("matching_score", 0)
+                        
+                        logger.info(f"简历 {resume_info['resume_id']} LLM 评估完成, 匹配度: {matching_score}%")
+                        
+                        # 只有LLM评估成功的简历才保存结果并返回
+                        custom_job_id = f"custom_{user_id}_{int(asyncio.get_event_loop().time())}"
+                        screening_result = ScreeningResult(
+                            job_id=custom_job_id,
+                            resume_id=resume_id,
+                            model=request.model or "custom",
+                            screening_type="custom",
+                            rerank_score=item["score"],
+                            raw_score=item.get("raw_score", item["score"]),  # 保存原始分数
+                            rank=len(successful_results) + 1,  # 重新排序
+                            llm_evaluation=llm_content,
+                            matching_score=matching_score,
+                            user_id=user_id
+                        )
+                        db.add(screening_result)
+                        
+                        # 更新简历的筛选状态
+                        resume.is_screened = True
+                        
+                        await db.commit()
 
-                # 构建结果
-                result = {
-                    "type": "result",
-                    "index": idx + 1,
-                    "total": len(reranked),
-                    "resume_id": resume_info["resume_id"],
-                    "filename": resume.original_filename,
-                    "file_size": resume.file_size,
-                    "created_at": int(resume.created_at.timestamp()) if resume.created_at else None,
-                    "rerank_score": item["score"],
-                    "llm_evaluation": llm_result["choices"][0]["message"]["content"]
-                }
-
-                # 流式返回结果
-                yield f"data: {json.dumps(result)}\n\n"
+                        # 构建结果
+                        result = {
+                            "type": "result",
+                            "index": len(successful_results) + 1,
+                            "total": len(reranked),  # 仍然显示总数量
+                            "resume_id": resume_info["resume_id"],
+                            "filename": resume.original_filename,
+                            "file_size": resume.file_size,
+                            "created_at": int(resume.created_at.timestamp()) if resume.created_at else None,
+                            "rerank_score": item["score"],
+                            "llm_evaluation": llm_content,
+                            "matching_score": matching_score
+                        }
+                        
+                        successful_results.append(result)
+                        
+                        # 流式返回成功的结果
+                        yield f"data: {json.dumps(result)}\n\n"
+                        
+                    else:
+                        llm_content = f"LLM评估失败: {llm_result['message']}"
+                        matching_score = 0
+                        logger.warning(f"简历 {resume_info['resume_id']} LLM 评估失败: {llm_result['message']}")
+                        
+                        # LLM评估失败，不保存结果，也不返回给前端
+                        continue
+                        
+                except Exception as e:
+                    llm_content = f"LLM评估超时或失败: {str(e)}"
+                    matching_score = 0
+                    logger.error(f"简历 {resume_info['resume_id']} LLM 评估异常: {e}")
+                    
+                    # LLM评估异常，不保存结果，也不返回给前端
+                    continue
 
             # 完成
             yield f"data: {json.dumps({'type': 'done', 'count': len(reranked)})}\n\n"
@@ -486,13 +520,33 @@ async def screen_resumes_by_job(
                            f"总prompt: {prompt_size:,} 字符, "
                            f"约 {prompt_size/1024/1024:.2f} MB")
 
-                # LLM 评估
-                llm_result = screening_system.llm.evaluate_resume(
+                # 异步调用 LLM 评估任务
+                llm_task = evaluate_resume_with_llm.delay(
+                    resume_info["resume_id"],
                     resume_info["resume_text"],
                     job_description,
                     model
                 )
-                logger.info(f"简历 {resume_info['resume_id']} LLM 评估完成")
+                
+                # 等待任务完成（设置超时时间）
+                try:
+                    llm_result = llm_task.get(timeout=120)  # 120秒超时，给Qwen足够时间
+                    
+                    if llm_result["success"]:
+                        evaluation_result = llm_result["evaluation_result"]
+                        llm_content = evaluation_result.get("overall_evaluation", "评估完成")
+                        matching_score = evaluation_result.get("matching_score", 0)
+                        
+                        logger.info(f"简历 {resume_info['resume_id']} LLM 评估完成, 匹配度: {matching_score}%")
+                    else:
+                        llm_content = f"LLM评估失败: {llm_result['message']}"
+                        matching_score = 0
+                        logger.warning(f"简历 {resume_info['resume_id']} LLM 评估失败: {llm_result['message']}")
+                        
+                except Exception as e:
+                    llm_content = f"LLM评估超时或失败: {str(e)}"
+                    matching_score = 0
+                    logger.error(f"简历 {resume_info['resume_id']} LLM 评估异常: {e}")
 
                 # 保存筛选结果到数据库
                 screening_result = ScreeningResult(
@@ -503,7 +557,8 @@ async def screen_resumes_by_job(
                     rerank_score=item["score"],
                     raw_score=item.get("raw_score", item["score"]),  # 保存原始分数
                     rank=idx + 1,
-                    llm_evaluation=llm_result["choices"][0]["message"]["content"],
+                    llm_evaluation=llm_content,
+                    matching_score=matching_score,
                     user_id=user_id
                 )
                 db.add(screening_result)
@@ -523,7 +578,8 @@ async def screen_resumes_by_job(
                     "file_size": resume.file_size,
                     "created_at": int(resume.created_at.timestamp()) if resume.created_at else None,
                     "rerank_score": item["score"],
-                    "llm_evaluation": llm_result["choices"][0]["message"]["content"]
+                    "llm_evaluation": llm_content,
+                    "matching_score": matching_score
                 }
 
                 # 流式返回结果
