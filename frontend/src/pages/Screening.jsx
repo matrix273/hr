@@ -1447,7 +1447,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     maxHeight: 'calc(100vh - 160px)',  // 确保有足够的滚动空间
-    overflow: 'hidden',
+    overflow: 'auto',  // 改为auto，允许内容完整滚动
   },
   card: {
     backgroundColor: '#fff',
@@ -1684,6 +1684,7 @@ const styles = {
     padding: '24px',
     maxHeight: 'calc(100vh - 240px)',  // 设置最大高度以启用滚动
     overflowY: 'auto',
+    overflowX: 'hidden',  // 防止水平滚动
     position: 'relative',
   },
   formGroup: {
@@ -1834,6 +1835,7 @@ const styles = {
     borderColor: '#667eea',
     borderRadius: '8px',
     backgroundColor: '#fafafa',
+    minHeight: 'auto',  // 允许根据内容自动调整高度
   },
   resultHeader: {
     display: 'flex',
@@ -1893,6 +1895,7 @@ const styles = {
     paddingTop: '16px',
     borderTop: '1px solid #e0e0e0',
     animation: 'fadeIn 0.3s ease-in-out',
+    overflow: 'visible',  // 确保内容完整显示
   },
   stickyHeader: {
     display: 'flex',
@@ -1929,6 +1932,8 @@ const styles = {
     padding: '12px',
     borderRadius: '6px',
     border: '1px solid #e0e0e0',
+    minHeight: '800px',  // 设置最小高度，与PDF高度一致
+    overflow: 'visible',  // 让内容完整显示，不需要滚动
   },
   progressContainer: {
     marginTop: '16px',

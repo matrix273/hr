@@ -6,7 +6,8 @@ import {
   FileSearchOutlined,
   SearchOutlined,
   TeamOutlined,
-  BarChartOutlined
+  BarChartOutlined,
+  CreditCardOutlined
 } from '@ant-design/icons';
 
 const { Title } = Typography;
@@ -33,15 +34,20 @@ const Sidebar = ({ activeItem, onItemClick }) => {
       icon: <SearchOutlined />, 
       label: '简历筛选' 
     },
-    { 
-      key: 'users', 
-      icon: <TeamOutlined />, 
-      label: '用户管理' 
+    {
+      key: 'users',
+      icon: <TeamOutlined />,
+      label: '用户管理'
     },
-    { 
-      key: 'analysis', 
-      icon: <BarChartOutlined />, 
-      label: '数据分析' 
+    {
+      key: 'payment',
+      icon: <CreditCardOutlined />,
+      label: '会员订阅'
+    },
+    {
+      key: 'analysis',
+      icon: <BarChartOutlined />,
+      label: '数据分析'
     },
   ];
 
