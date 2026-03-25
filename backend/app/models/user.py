@@ -17,6 +17,10 @@ class User(Base):
     full_name = Column(String(100))
     role = Column(String(20), nullable=False, default="user")
     is_active = Column(Boolean, default=True)
+    # 支付相关字段
+    balance = Column(Float, default=0.0, comment="账户余额")
+    subscription_plan = Column(String(50), default="free", comment="订阅套餐")
+    subscription_expires = Column(DateTime(timezone=True), comment="订阅过期时间")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -29,6 +33,9 @@ class User(Base):
             "full_name": self.full_name,
             "role": self.role,
             "is_active": self.is_active,
+            "balance": self.balance,
+            "subscription_plan": self.subscription_plan,
+            "subscription_expires": self.subscription_expires.isoformat() if self.subscription_expires else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None
         }

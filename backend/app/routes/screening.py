@@ -1173,7 +1173,7 @@ async def export_pdf(
         
         # 返回PDF响应 - 使用RFC 5987编码中文文件名
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"简历筛选报告_{timestamp}.pdf"
+        filename = f"{timestamp}简历筛选报告.pdf"
         encoded_filename = quote(filename)
         
         return Response(
