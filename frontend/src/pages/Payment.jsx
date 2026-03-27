@@ -17,7 +17,7 @@ const PaymentPage = () => {
     const [activeTab, setActiveTab] = useState('plans');
 
     // 根据环境配置API地址
-    const API_BASE = window.location.hostname === 'godquant.com' ? '' : 'http://localhost:8000';
+    const API_BASE = window.location.hostname.includes('godquant.com') ? '' : 'http://localhost:8000';
     const TOKEN = localStorage.getItem('token');
 
     const headers = {

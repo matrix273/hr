@@ -3,7 +3,7 @@ import axios from 'axios';
 // 根据环境配置API地址
 const getApiBaseUrl = () => {
   // 如果是生产环境，使用相对路径；开发环境使用localhost
-  if (window.location.hostname === 'godquant.com') {
+  if (window.location.hostname.includes('godquant.com')) {
     return '/api';
   }
   return 'http://localhost:8000';
