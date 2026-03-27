@@ -42,13 +42,24 @@ cleanup() {
 # 捕获中断信号
 trap cleanup SIGINT SIGTERM
 
-# 检查虚拟环境
-if [ -d ".venv" ]; then
-    echo "✅ 激活虚拟环境"
-    source .venv/bin/activate
+# 检查 uv 命令
+if command -v uv &> /dev/null; then
+    echo "✅ 检测到 uv，使用 uv 运行"
+    USE_UV=true
 else
-    echo "❌ 未找到虚拟环境，请先创建：uv venv"
-    exit 1
+    echo "⚠️  未检测到 uv，使用传统方式激活虚拟环境"
+    USE_UV=false
+fi
+
+# 检查虚拟环境（非 uv 模式）
+if [ "$USE_UV" = false ]; then
+    if [ -d ".venv" ]; then
+        echo "✅ 激活虚拟环境"
+        source .venv/bin/activate
+    else
+        echo "❌ 未找到虚拟环境，请先创建：uv venv"
+        exit 1
+    fi
 fi
 
 # 确保日志目录存在
@@ -67,22 +78,26 @@ echo ""
 
 # 1. 启动Embedding服务
 echo "🔤 启动Embedding服务..."
-cd backend
-python app/embedding_server.py > ../logs/embedding.log 2>&1 &
+if [ "$USE_UV" = true ]; then
+    uv run python backend/start-embedding.py --host 0.0.0.0 --port 8010 > logs/embedding.log 2>&1 &
+else
+    python backend/start-embedding.py --host 0.0.0.0 --port 8010 > logs/embedding.log 2>&1 &
+fi
 EMBEDDING_PID=$!
 echo "✅ Embedding服务已启动 (PID: $EMBEDDING_PID)"
-cd ..
 
 # 等待Embedding服务启动
 sleep 5
 
 # 2. 启动Reranker服务
 echo "🔄 启动Reranker服务..."
-cd backend
-python app/reranker_server.py > ../logs/reranker.log 2>&1 &
+if [ "$USE_UV" = true ]; then
+    uv run python backend/start-reranker.py --host 0.0.0.0 --port 8001 > logs/reranker.log 2>&1 &
+else
+    python backend/start-reranker.py --host 0.0.0.0 --port 8001 > logs/reranker.log 2>&1 &
+fi
 RERANKER_PID=$!
 echo "✅ Reranker服务已启动 (PID: $RERANKER_PID)"
-cd ..
 
 # 等待Reranker服务启动
 sleep 5
@@ -90,7 +105,11 @@ sleep 5
 # 3. 启动Celery Worker
 echo "📋 启动Celery Worker..."
 cd backend
-celery -A app.celery_app worker --loglevel=info > ../logs/celery.log 2>&1 &
+if [ "$USE_UV" = true ]; then
+    uv run celery -A app.celery_app worker --loglevel=info > ../logs/celery.log 2>&1 &
+else
+    celery -A app.celery_app worker --loglevel=info > ../logs/celery.log 2>&1 &
+fi
 CELERY_PID=$!
 echo "✅ Celery Worker已启动 (PID: $CELERY_PID)"
 cd ..
@@ -101,7 +120,11 @@ sleep 3
 # 4. 启动FastAPI Backend
 echo "⚡ 启动FastAPI Backend..."
 cd backend
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload > ../logs/fastapi.log 2>&1 &
+if [ "$USE_UV" = true ]; then
+    uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload > ../logs/fastapi.log 2>&1 &
+else
+    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload > ../logs/fastapi.log 2>&1 &
+fi
 BACKEND_PID=$!
 echo "✅ FastAPI Backend已启动 (PID: $BACKEND_PID)"
 cd ..
