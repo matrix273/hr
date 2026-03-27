@@ -38,7 +38,7 @@ const Register = () => {
     setLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:8000/api/users/register', values);
+      const response = await axios.post('/api/users/register', values);
 
       if (response.data) {
         message.success('注册成功！请登录');
@@ -57,7 +57,7 @@ const Register = () => {
       setContactLoading(true);
       
       try {
-        const response = await axios.post('http://localhost:8000/api/users/contact', values);
+        const response = await axios.post('/api/users/contact', values);
         if (response.data.success) {
           message.success(response.data.message);
           setShowContactModal(false);

@@ -154,7 +154,7 @@ const ResumeList = ({ onUploadSuccess }) => {
     // 获取 PDF 文件并转换为 blob URL
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch(`http://localhost:8000/api/resumes/${resume.resume_id}/file`, {
+      const response = await fetch(`/api/resumes/${resume.resume_id}/file`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

@@ -770,7 +770,7 @@ const Screening = () => {
   const handleViewResume = async (resumeId, filename) => {
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch(`http://localhost:8000/api/resumes/${resumeId}/file`, {
+      const response = await fetch(`/api/resumes/${resumeId}/file`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

@@ -39,7 +39,7 @@ const Home = () => {
       setContactLoading(true);
       
       try {
-        const response = await axios.post('http://localhost:8000/api/users/contact', values);
+        const response = await axios.post('/api/users/contact', values);
         if (response.data.success) {
           message.success(response.data.message);
           setShowContactModal(false);

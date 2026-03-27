@@ -118,7 +118,7 @@ FASTAPI_HOST = os.getenv("FASTAPI_HOST", "0.0.0.0")
 FASTAPI_PORT = int(os.getenv("FASTAPI_PORT", "8000"))
 
 # CORS Configuration
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173")
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173,https://godquant.com")
 
 # PostgreSQL Configuration
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")

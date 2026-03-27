@@ -1,8 +1,17 @@
 import axios from 'axios';
 
+// 根据环境配置API地址
+const getApiBaseUrl = () => {
+  // 如果是生产环境，使用相对路径；开发环境使用localhost
+  if (window.location.hostname === 'godquant.com') {
+    return '/api';
+  }
+  return 'http://localhost:8000';
+};
+
 // 创建 axios 实例
 const api = axios.create({
-  baseURL: 'http://localhost:8000',
+  baseURL: getApiBaseUrl(),
   timeout: 300000, // 5分钟超时,适应LLM评估
 });
 

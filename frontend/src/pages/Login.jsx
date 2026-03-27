@@ -20,7 +20,7 @@ const Login = () => {
 
     try {
       console.log('开始登录，用户名:', values.username);
-      const response = await axios.post('http://localhost:8000/api/auth/login', values);
+      const response = await axios.post('/api/auth/login', values);
       console.log('登录响应:', response.data);
       const { access_token, user } = response.data;
 
