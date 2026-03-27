@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { jobService } from '../services/jobService';
 import {
@@ -21,6 +22,7 @@ const { Title, Text } = Typography;
 const { Dragger } = Upload;
 
 const ResumeUpload = ({ onUploadSuccess }) => {
+  const navigate = useNavigate();
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -247,7 +249,13 @@ const ResumeUpload = ({ onUploadSuccess }) => {
               description={
                 <span>
                   当前没有可用岗位，请先前往 
-                  <a href="/jobs" style={{ textDecoration: 'underline', fontWeight: '500' }}>岗位管理</a> 
+                  <a
+                    onClick={() => {
+                      localStorage.setItem('activeTab', 'jobs');
+                      navigate('/');
+                    }}
+                    style={{ textDecoration: 'underline', fontWeight: '500', cursor: 'pointer' }}
+                  >岗位管理</a> 
                   页面创建岗位后再上传简历
                 </span>
               }
