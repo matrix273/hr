@@ -11,7 +11,7 @@ from ..models.user import User
 from ..models.payment import PaymentOrder, SubscriptionPlan
 from ..services.payment import SimplePaymentService
 
-router = APIRouter(prefix="/payment", tags=["payment"])
+router = APIRouter(prefix="/api/payment", tags=["payment"])
 
 
 async def get_current_user_object(

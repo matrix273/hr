@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Badge, Space, Spin, Empty, Typography, Tag } from 'antd';
 import { CheckCircleOutlined, LoadingOutlined, QrcodeOutlined, ClockCircleOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { getApiBaseUrl } from '../utils/api';
 
 const { Title, Text } = Typography;
 
@@ -16,8 +17,7 @@ const PaymentPage = () => {
     const [orders, setOrders] = useState([]);
     const [activeTab, setActiveTab] = useState('plans');
 
-    // 根据环境配置API地址
-    const API_BASE = window.location.hostname.includes('godquant.com') ? '' : 'http://localhost:8000';
+    const API_BASE = getApiBaseUrl();
     const TOKEN = localStorage.getItem('token');
 
     const headers = {
