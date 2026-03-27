@@ -102,6 +102,9 @@ class JobCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=255, description="岗位标题")
     description: str = Field(..., min_length=10, description="岗位描述")
     requirements: Optional[str] = Field(None, description="岗位要求")
+    experience_years: Optional[int] = Field(None, description="工作经验要求（年）")
+    education: Optional[str] = Field(None, max_length=50, description="学历要求")
+    certifications: Optional[str] = Field(None, description="资格证书要求")
     salary_range: Optional[str] = Field(None, max_length=100, description="薪资范围")
     location: Optional[str] = Field(None, max_length=100, description="工作地点")
 
@@ -111,6 +114,9 @@ class JobUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=255, description="岗位标题")
     description: Optional[str] = Field(None, min_length=10, description="岗位描述")
     requirements: Optional[str] = Field(None, description="岗位要求")
+    experience_years: Optional[int] = Field(None, description="工作经验要求（年）")
+    education: Optional[str] = Field(None, max_length=50, description="学历要求")
+    certifications: Optional[str] = Field(None, description="资格证书要求")
     salary_range: Optional[str] = Field(None, max_length=100, description="薪资范围")
     location: Optional[str] = Field(None, max_length=100, description="工作地点")
 
@@ -121,6 +127,9 @@ class JobResponse(BaseModel):
     title: str
     description: str
     requirements: Optional[str]
+    experience_years: Optional[int] = None
+    education: Optional[str] = None
+    certifications: Optional[str] = None
     salary_range: Optional[str]
     location: Optional[str]
     user_id: str
