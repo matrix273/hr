@@ -252,7 +252,7 @@ const ResumeUpload = ({ onUploadSuccess }) => {
                   <a
                     onClick={() => {
                       localStorage.setItem('activeTab', 'jobs');
-                      navigate('/');
+                      navigate('/app');
                     }}
                     style={{ textDecoration: 'underline', fontWeight: '500', cursor: 'pointer' }}
                   >岗位管理</a> 
