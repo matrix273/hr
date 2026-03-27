@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout, Button, Typography, Space, message } from 'antd';
 import { LogoutOutlined } from '@ant-design/icons';
@@ -41,6 +41,16 @@ const Dashboard = () => {
     // 保存当前 tab 到 localStorage
     localStorage.setItem('activeTab', itemId);
   };
+
+  // 监听子组件触发的 tab 切换事件
+  useEffect(() => {
+    const handleSwitchTab = (e) => {
+      setActiveTab(e.detail);
+      localStorage.setItem('activeTab', e.detail);
+    };
+    window.addEventListener('switchTab', handleSwitchTab);
+    return () => window.removeEventListener('switchTab', handleSwitchTab);
+  }, []);
 
   return (
     <Layout style={{ minHeight: '100vh', background: '#f5f5f5' }}>
