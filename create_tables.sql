@@ -1,4 +1,4 @@
--- HR招聘系统数据库建表语句
+-- HR招聘系统数据库建表语句（PostgreSQL兼容版）
 -- 生成时间: 2026-03-27
 
 -- 用户表
@@ -10,9 +10,9 @@ CREATE TABLE users (
     full_name VARCHAR(100),
     role VARCHAR(20) NOT NULL DEFAULT 'user',
     is_active BOOLEAN DEFAULT TRUE,
-    balance FLOAT DEFAULT 0.0 COMMENT '账户余额',
-    subscription_plan VARCHAR(50) DEFAULT 'free' COMMENT '订阅套餐',
-    subscription_expires TIMESTAMP WITH TIME ZONE COMMENT '订阅过期时间',
+    balance FLOAT DEFAULT 0.0,
+    subscription_plan VARCHAR(50) DEFAULT 'free',
+    subscription_expires TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE
 );
@@ -24,10 +24,10 @@ CREATE TABLE resumes (
     file_size INTEGER NOT NULL,
     resume_text TEXT NOT NULL,
     user_id VARCHAR(50) NOT NULL,
-    job_id VARCHAR(50) COMMENT '关联的岗位ID',
-    embedding_status VARCHAR(20) DEFAULT 'pending' COMMENT 'embedding 处理状态: pending, processing, completed, failed',
-    embedding_error TEXT COMMENT 'embedding 处理错误信息',
-    is_screened BOOLEAN DEFAULT FALSE COMMENT '是否已被筛选过',
+    job_id VARCHAR(50),
+    embedding_status VARCHAR(20) DEFAULT 'pending',
+    embedding_error TEXT,
+    is_screened BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE
 );
@@ -38,9 +38,9 @@ CREATE TABLE jobs (
     title VARCHAR(255) NOT NULL,
     description TEXT NOT NULL,
     requirements TEXT,
-    experience_years INTEGER COMMENT '工作经验要求（年）',
-    education VARCHAR(50) COMMENT '学历要求',
-    certifications TEXT COMMENT '资格证书要求',
+    experience_years INTEGER,
+    education VARCHAR(50),
+    certifications TEXT,
     salary_range VARCHAR(100),
     location VARCHAR(100),
     user_id VARCHAR(50) NOT NULL,
@@ -54,13 +54,13 @@ CREATE TABLE screening_results (
     result_id VARCHAR(50) UNIQUE NOT NULL,
     job_id VARCHAR(50) NOT NULL,
     resume_id VARCHAR(50) NOT NULL,
-    model VARCHAR(100) NOT NULL COMMENT '使用的LLM模型',
-    screening_type VARCHAR(20) NOT NULL DEFAULT 'job' COMMENT '筛选方式: job-岗位筛选, custom-自定义描述筛选',
-    rerank_score FLOAT NOT NULL COMMENT 'Rerank得分',
-    raw_score FLOAT NOT NULL COMMENT '原始Rerank得分',
-    rank INTEGER NOT NULL COMMENT '排名',
-    llm_evaluation TEXT NOT NULL COMMENT 'LLM评估内容',
-    matching_score FLOAT DEFAULT 0.0 COMMENT 'LLM匹配度评分',
+    model VARCHAR(100) NOT NULL,
+    screening_type VARCHAR(20) NOT NULL DEFAULT 'job',
+    rerank_score FLOAT NOT NULL,
+    raw_score FLOAT NOT NULL,
+    rank INTEGER NOT NULL,
+    llm_evaluation TEXT NOT NULL,
+    matching_score FLOAT DEFAULT 0.0,
     user_id VARCHAR(50) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -68,10 +68,10 @@ CREATE TABLE screening_results (
 -- 联系表单表
 CREATE TABLE contacts (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL COMMENT '联系人姓名',
-    email VARCHAR(100) NOT NULL COMMENT '联系人邮箱',
-    message TEXT NOT NULL COMMENT '留言内容',
-    status VARCHAR(20) DEFAULT 'pending' COMMENT '处理状态: pending-待处理, processed-已处理',
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL,
+    message TEXT NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -80,31 +80,31 @@ CREATE TABLE payment_orders (
     id SERIAL PRIMARY KEY,
     order_id VARCHAR(50) UNIQUE NOT NULL,
     user_id VARCHAR(50) NOT NULL,
-    amount FLOAT NOT NULL COMMENT '支付金额',
-    currency VARCHAR(10) DEFAULT 'CNY' COMMENT '货币类型',
-    payment_method VARCHAR(50) NOT NULL COMMENT '支付方式: wechat, alipay, stripe',
-    product_type VARCHAR(50) NOT NULL COMMENT '产品类型: subscription-订阅, credit-余额充值',
-    product_id VARCHAR(50) COMMENT '产品ID',
-    product_name VARCHAR(255) NOT NULL COMMENT '产品名称',
-    status VARCHAR(20) DEFAULT 'pending' COMMENT '订单状态: pending-待支付, paid-已支付, failed-支付失败, cancelled-已取消',
-    payment_data JSON COMMENT '支付平台返回的数据',
+    amount FLOAT NOT NULL,
+    currency VARCHAR(10) DEFAULT 'CNY',
+    payment_method VARCHAR(50) NOT NULL,
+    product_type VARCHAR(50) NOT NULL,
+    product_id VARCHAR(50),
+    product_name VARCHAR(255) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    payment_data JSON,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE,
-    paid_at TIMESTAMP WITH TIME ZONE COMMENT '支付完成时间'
+    paid_at TIMESTAMP WITH TIME ZONE
 );
 
 -- 订阅套餐表
 CREATE TABLE subscription_plans (
     id VARCHAR(50) PRIMARY KEY,
-    name VARCHAR(100) NOT NULL COMMENT '套餐名称',
-    description TEXT COMMENT '套餐描述',
-    price FLOAT NOT NULL COMMENT '价格',
-    duration_days INTEGER NOT NULL COMMENT '有效期（天）',
-    max_resumes INTEGER DEFAULT 100 COMMENT '最大简历数量',
-    max_jobs INTEGER DEFAULT 10 COMMENT '最大岗位数量',
-    ai_screening BOOLEAN DEFAULT TRUE COMMENT '是否包含AI筛选',
-    priority_support BOOLEAN DEFAULT FALSE COMMENT '是否优先支持',
-    is_active BOOLEAN DEFAULT TRUE COMMENT '是否激活',
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    price FLOAT NOT NULL,
+    duration_days INTEGER NOT NULL,
+    max_resumes INTEGER DEFAULT 100,
+    max_jobs INTEGER DEFAULT 10,
+    ai_screening BOOLEAN DEFAULT TRUE,
+    priority_support BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
