@@ -43,6 +43,7 @@ dependencies = [
     # PDF Generation
     "reportlab>=4.0.0",
     "psycopg2-binary>=2.9.11",
+    "qrcode>=8.2",
 ]
 
 [dependency-groups]
