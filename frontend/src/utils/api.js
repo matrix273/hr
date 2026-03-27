@@ -6,8 +6,11 @@ const getApiBaseUrl = () => {
   if (window.location.hostname.includes('godquant.com')) {
     return '/api';
   }
-  return 'http://localhost:8000';
+  return 'http://localhost:8000/api';
 };
+
+// 导出 getApiBaseUrl 供 fetch 调用使用
+export { getApiBaseUrl };
 
 // 创建 axios 实例
 const api = axios.create({

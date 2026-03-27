@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
+import { getApiBaseUrl } from '../utils/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { 
@@ -295,7 +296,7 @@ const Screening = () => {
       }
       
       // 调用后端API导出PDF（历史记录）
-      const response = await api.post('/api/screening/export-pdf', {
+      const response = await api.post('/screening/export-pdf', {
         result_ids: resultIds
       }, {
         responseType: 'blob' // 重要：指定响应类型为blob
@@ -450,7 +451,7 @@ const Screening = () => {
     }
 
     try {
-      const response = await api.post('/api/screening/batch-delete', {
+      const response = await api.post('/screening/batch-delete', {
         result_ids: selectedHistory
       });
 
@@ -505,7 +506,7 @@ const Screening = () => {
 
   const fetchJobs = async () => {
     try {
-      const response = await api.get('/api/jobs/list');
+      const response = await api.get('/jobs/list');
       if (response.data.success) {
         setJobs(response.data.jobs);
         // 恢复之前选择的岗位
@@ -607,11 +608,11 @@ const Screening = () => {
     
     if (jobId) {
       // 选择岗位模式：自动使用选中的岗位进行筛选，不需要额外的filter参数
-      url = `/api/screening/screen_by_job/${jobId}?${baseParams}`;
+      url = `${getApiBaseUrl()}/screening/screen_by_job/${jobId}?${baseParams}`;
     } else {
       // 自定义描述模式：支持岗位过滤
       const filterParam = filterJobId ? `&filter_job_id=${filterJobId}` : '';
-      url = `/api/screening/screen?${baseParams}${filterParam}`;
+      url = `${getApiBaseUrl()}/screening/screen?${baseParams}${filterParam}`;
       data = {
         job_description: jobDescription,
         top_k: topK,
@@ -717,10 +718,10 @@ const Screening = () => {
       let response;
       if (isCustomMode) {
         // 自定义描述模式：获取所有自定义筛选的历史记录
-        response = await api.get('/api/screening/custom_history');
+        response = await api.get('/screening/custom_history');
       } else if (jobId) {
         // 岗位筛选模式：获取特定岗位的历史记录
-        response = await api.get(`/api/screening/history/${jobId}`);
+        response = await api.get(`/screening/history/${jobId}`);
       } else {
         setHistoryResults([]);
         return;
@@ -770,7 +771,7 @@ const Screening = () => {
   const handleViewResume = async (resumeId, filename) => {
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch(`/api/resumes/${resumeId}/file`, {
+      const response = await fetch(`${getApiBaseUrl()}/resumes/${resumeId}/file`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

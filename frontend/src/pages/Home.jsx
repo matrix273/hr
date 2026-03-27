@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 import {
   Row,
@@ -39,7 +39,7 @@ const Home = () => {
       setContactLoading(true);
       
       try {
-        const response = await axios.post('/api/users/contact', values);
+        const response = await api.post('/users/contact', values);
         if (response.data.success) {
           message.success(response.data.message);
           setShowContactModal(false);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
+import { getApiBaseUrl } from '../utils/api';
 import { 
   Permission, 
   hasPermission, 
@@ -46,7 +47,7 @@ const ResumeList = ({ onUploadSuccess }) => {
     setError('');
 
     try {
-      const response = await api.get('/api/resumes/list');
+      const response = await api.get('/resumes/list');
 
       if (response.data.success) {
         setResumes(response.data.resumes);
@@ -94,7 +95,7 @@ const ResumeList = ({ onUploadSuccess }) => {
     }
 
     try {
-      const response = await api.delete(`/api/resumes/${resumeId}`);
+      const response = await api.delete(`/resumes/${resumeId}`);
 
       if (response.data.success) {
         setResumes(resumes.filter(r => r.resume_id !== resumeId));
@@ -134,7 +135,7 @@ const ResumeList = ({ onUploadSuccess }) => {
     }
 
     try {
-      const response = await api.post('/api/resumes/batch-delete', {
+      const response = await api.post('/resumes/batch-delete', {
         resume_ids: selectedResumes
       });
 
@@ -154,7 +155,7 @@ const ResumeList = ({ onUploadSuccess }) => {
     // 获取 PDF 文件并转换为 blob URL
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch(`/api/resumes/${resume.resume_id}/file`, {
+      const response = await fetch(`${getApiBaseUrl()}/resumes/${resume.resume_id}/file`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

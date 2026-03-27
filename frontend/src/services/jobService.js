@@ -4,7 +4,7 @@ export const jobService = {
   // 获取岗位列表
   async getJobs() {
     try {
-      const response = await api.get('/api/jobs/list');
+      const response = await api.get('/jobs/list');
       return response.data;
     } catch (error) {
       console.error('获取岗位列表失败:', error);
@@ -15,7 +15,7 @@ export const jobService = {
   // 创建岗位
   async createJob(jobData) {
     try {
-      const response = await api.post('/api/jobs/create', jobData);
+      const response = await api.post('/jobs/create', jobData);
       return response.data;
     } catch (error) {
       console.error('创建岗位失败:', error);
@@ -26,7 +26,7 @@ export const jobService = {
   // 更新岗位
   async updateJob(jobId, jobData) {
     try {
-      const response = await api.put(`/api/jobs/${jobId}`, jobData);
+      const response = await api.put(`/jobs/${jobId}`, jobData);
       return response.data;
     } catch (error) {
       console.error('更新岗位失败:', error);
@@ -37,7 +37,7 @@ export const jobService = {
   // 删除岗位
   async deleteJob(jobId) {
     try {
-      const response = await api.delete(`/api/jobs/${jobId}`);
+      const response = await api.delete(`/jobs/${jobId}`);
       return response.data;
     } catch (error) {
       console.error('删除岗位失败:', error);

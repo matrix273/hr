@@ -63,7 +63,7 @@ const UserManagement = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/api/users');
+      const response = await api.get('/users');
       setUsers(response.data);
     } catch (err) {
       setError(err.response?.data?.detail || '获取用户列表失败');
@@ -120,7 +120,7 @@ const UserManagement = () => {
     }
 
     try {
-      await api.delete(`/api/users/${user.id}`);
+      await api.delete(`/users/${user.id}`);
       setUsers(users.filter(u => u.id !== user.id));
       setError('');
     } catch (err) {
@@ -133,14 +133,14 @@ const UserManagement = () => {
 
     try {
       if (modalMode === 'create') {
-        const response = await api.post('/api/users', values);
+        const response = await api.post('/users', values);
         setUsers([response.data, ...users]);
       } else {
         const updateData = { ...values };
         if (!updateData.password) {
           delete updateData.password;
         }
-        const response = await api.put(`/api/users/${currentUser.id}`, updateData);
+        const response = await api.put(`/users/${currentUser.id}`, updateData);
         setUsers(users.map(u => u.id === currentUser.id ? response.data : u));
       }
       setShowModal(false);

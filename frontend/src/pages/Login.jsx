@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../utils/api';
 import { Form, Input, Button, Card, message, Typography, Space } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 
@@ -20,7 +20,7 @@ const Login = () => {
 
     try {
       console.log('开始登录，用户名:', values.username);
-      const response = await axios.post('/api/auth/login', values);
+      const response = await api.post('/auth/login', values);
       console.log('登录响应:', response.data);
       const { access_token, user } = response.data;
 

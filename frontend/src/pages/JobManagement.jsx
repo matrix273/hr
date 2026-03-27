@@ -29,7 +29,7 @@ const JobManagement = () => {
     setError('');
 
     try {
-      const response = await api.get('/api/jobs/list');
+      const response = await api.get('/jobs/list');
 
       if (response.data.success) {
         setJobs(response.data.jobs);
@@ -51,13 +51,13 @@ const JobManagement = () => {
       if (editingJob) {
         // 更新岗位
         response = await api.put(
-          `/api/jobs/${editingJob.job_id}`,
+          `/jobs/${editingJob.job_id}`,
           values
         );
       } else {
         // 创建岗位
         response = await api.post(
-          '/api/jobs/create',
+          '/jobs/create',
           values
         );
       }
@@ -95,7 +95,7 @@ const JobManagement = () => {
     }
 
     try {
-      const response = await api.delete(`/api/jobs/${jobId}`);
+      const response = await api.delete(`/jobs/${jobId}`);
 
       if (response.data.success) {
         setJobs(jobs.filter(j => j.job_id !== jobId));
