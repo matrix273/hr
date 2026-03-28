@@ -133,6 +133,7 @@ class LLMClient:
 请严格使用 **Markdown 格式** 输出，结构如下：
 
 ### 整体匹配度评分（0-100）
+（请在此标题下方第一行输出：匹配度：XX分，其中XX为0-100的整数）
 
 ### 技能匹配分析
 
@@ -272,9 +273,21 @@ class LLMClient:
                 "overall_evaluation": content
             }
             
-            # 解析匹配度评分
+            # 解析匹配度评分（覆盖：匹配度：85分 / 85分 / 85/100 / 85% 等）
             import re
-            score_match = re.search(r'(?:匹配度|评分|score)[：:\s]*([0-9]{1,3})', content, re.IGNORECASE)
+            score_match = re.search(
+                r'(?:匹配度|评分|score)[：:\s]*([0-9]{1,3})\s*[分%/]?',
+                content, re.IGNORECASE
+            )
+            if not score_match:
+                # 备用：标题行下方独立数字（如 "### 整体匹配度评分\n\n85"）
+                score_match = re.search(
+                    r'(?:整体匹配度评分|匹配度)[^\n]*\n+\s*([0-9]{1,3})\b',
+                    content
+                )
+            if not score_match:
+                # 备用：独立出现的 "XX分" 或 "XX/100"
+                score_match = re.search(r'\b([0-9]{1,3})\s*[分/]\s*(?:100|分)?\b', content)
             if score_match:
                 evaluation_result["matching_score"] = int(score_match.group(1))
             

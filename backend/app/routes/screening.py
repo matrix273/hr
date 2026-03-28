@@ -179,7 +179,14 @@ async def screen_resumes(
                         # 更新简历的筛选状态
                         resume.is_screened = True
                         
-                        await db.commit()
+                        try:
+                            await db.commit()
+                        except (asyncio.CancelledError, Exception) as commit_err:
+                            await db.rollback()
+                            if isinstance(commit_err, asyncio.CancelledError):
+                                logger.warning(f"客户端断开连接, 跳过保存: {resume_info['resume_id']}")
+                                raise
+                            logger.error(f"保存筛选结果失败: {commit_err}")
 
                         # 构建结果
                         result = {
@@ -569,7 +576,14 @@ async def screen_resumes_by_job(
                 # 更新简历的筛选状态
                 resume.is_screened = True
                 
-                await db.commit()
+                try:
+                    await db.commit()
+                except (asyncio.CancelledError, Exception) as commit_err:
+                    await db.rollback()
+                    if isinstance(commit_err, asyncio.CancelledError):
+                        logger.warning(f"客户端断开连接, 跳过保存: {resume_info['resume_id']}")
+                        raise
+                    logger.error(f"保存筛选结果失败: {commit_err}")
 
                 # 构建结果
                 result = {
