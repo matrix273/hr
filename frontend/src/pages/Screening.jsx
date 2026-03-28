@@ -20,7 +20,8 @@ import {
   Typography,
   Divider,
   Collapse,
-  Tooltip
+  Tooltip,
+  Dropdown
 } from 'antd';
 
 const { Title, Text } = Typography;
@@ -348,8 +349,13 @@ const Screening = () => {
       const blob = new Blob([markdownContent], { type: 'text/markdown;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
+      
+      // 生成与PDF一致的文件名
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '_');
+      const filename = `${timestamp}_简历筛选报告_${data.length}份.md`;
+      
       link.href = url;
-      link.download = '简历筛选结果.md';
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -435,12 +441,16 @@ const Screening = () => {
       markdownContent += `---\n\n`;
     });
     
+    // 生成与PDF一致的文件名
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '_');
+    const filename = `${timestamp}_简历筛选报告_${data.length}份.md`;
+    
     // 创建下载链接
     const blob = new Blob([markdownContent], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = '简历筛选结果.md';
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -496,6 +506,7 @@ const Screening = () => {
         if (config.topK) setTopK(config.topK);
         if (config.selectedModel) setSelectedModel(config.selectedModel);
         if (config.jobDescription) setJobDescription(config.jobDescription);
+        if (config.exportType) setExportType(config.exportType);
         // 不再从本地存储加载 useJobId，始终默认使用选择岗位模式
       } catch (e) {
         console.error('加载配置失败:', e);
@@ -512,7 +523,8 @@ const Screening = () => {
       selectedModel,
       useJobId,
       jobDescription,
-      selectedJobId: selectedJob?.job_id
+      selectedJobId: selectedJob?.job_id,
+      exportType
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
   };
@@ -1060,16 +1072,29 @@ const Screening = () => {
                 <Space>
                   {/* 导出功能 */}
                   {((showHistory && filteredHistoryResults.length > 0) || (!showHistory && results.length > 0)) && (
-                    <Tooltip title={`当前格式: ${exportType === 'pdf' ? 'PDF' : 'Markdown'}`}>
+                    <Dropdown
+                      menu={{
+                        selectedKeys: [exportType],
+                        onClick: ({ key }) => {
+                          setExportType(key);
+                          saveConfig();
+                        },
+                        items: [
+                          { key: 'pdf', label: 'PDF 格式' },
+                          { key: 'markdown', label: 'Markdown 格式' },
+                        ]
+                      }}
+                      trigger={['hover']}
+                    >
                       <Button
                         type="primary"
                         icon={<DownloadOutlined />}
                         onClick={handleExportResults}
                         disabled={selectedResults.length === 0}
                       >
-                        导出选中 ({selectedResults.length})
+                        导出选中 {selectedResults.length} 份 [{exportType === 'pdf' ? 'PDF' : 'Markdown'}]
                       </Button>
-                    </Tooltip>
+                    </Dropdown>
                   )}
                   
                   {/* 删除按钮 */}
