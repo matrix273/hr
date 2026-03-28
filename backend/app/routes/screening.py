@@ -152,22 +152,21 @@ async def screen_resumes(
                 # 等待任务完成（带心跳保活，防止连接超时断开）
                 try:
                     llm_result = None
-                    heartbeat_interval = 15  # 每15秒发送一次心跳
+                    heartbeat_interval = 15
                     elapsed = 0
-                    step = 1
+
                     while elapsed < 120:
                         if llm_task.ready():
                             llm_result = llm_task.get(timeout=1)
                             break
-                        # 短暂等待后检查结果
-                        try:
-                            llm_result = llm_task.get(timeout=step)
-                            break
-                        except Exception:
-                            pass
-                        elapsed += step
+                        # 用 asyncio.sleep 让出事件循环，允许 yield 发送心跳数据
+                        await asyncio.sleep(1)
+                        elapsed += 1
                         if elapsed % heartbeat_interval == 0:
                             yield f": heartbeat\n\n"
+
+                    if llm_result is None:
+                        raise TimeoutError("LLM 评估超时（120秒）")
                     
                     if llm_result["success"]:
                         evaluation_result = llm_result["evaluation_result"]
@@ -557,22 +556,21 @@ async def screen_resumes_by_job(
                 # 等待任务完成（带心跳保活，防止连接超时断开）
                 try:
                     llm_result = None
-                    heartbeat_interval = 15  # 每15秒发送一次心跳
+                    heartbeat_interval = 15
                     elapsed = 0
-                    step = 1
+
                     while elapsed < 120:
                         if llm_task.ready():
                             llm_result = llm_task.get(timeout=1)
                             break
-                        # 短暂等待后检查结果
-                        try:
-                            llm_result = llm_task.get(timeout=step)
-                            break
-                        except Exception:
-                            pass
-                        elapsed += step
+                        # 用 asyncio.sleep 让出事件循环，允许 yield 发送心跳数据
+                        await asyncio.sleep(1)
+                        elapsed += 1
                         if elapsed % heartbeat_interval == 0:
                             yield f": heartbeat\n\n"
+
+                    if llm_result is None:
+                        raise TimeoutError("LLM 评估超时（120秒）")
                     
                     if llm_result["success"]:
                         evaluation_result = llm_result["evaluation_result"]
@@ -891,9 +889,7 @@ def _extract_and_replace_tables(html: str, styles: dict) -> tuple:
         for tr in table_tag.find_all("tr"):
             cells = []
             for cell in tr.find_all(["th", "td"]):
-                # 只保留安全的内联标签文本
-                cell_html = str(cell)
-                cell_html = _replace_emoji(cell_html)
+                _replace_emoji(str(cell))
                 # 清理不安全标签，只保留 b/i/u/font/br/super/sub
                 for unsafe in cell.find_all(True):
                     if unsafe.name not in SAFE_TAGS:
