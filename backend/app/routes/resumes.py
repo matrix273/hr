@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 from ..utils.pdf_parser import parse_pdf, clean_text
 from ..models.schemas import ResumeUploadResponse
-from ..models.user import Resume, Job
+from ..models.user import Resume, Job, ScreeningResult
 from ..utils.logger import logger
 from ..auth import get_current_user_from_token, get_current_active_user, Permission
 from ..database import get_db
@@ -189,6 +189,16 @@ async def delete_resume(
         resume = result.scalar_one_or_none()
 
         if resume:
+            # 删除关联的筛选结果记录
+            sr_result = await db.execute(
+                select(ScreeningResult).where(ScreeningResult.resume_id == resume_id)
+            )
+            screening_results = sr_result.scalars().all()
+            if screening_results:
+                for sr in screening_results:
+                    await db.delete(sr)
+                logger.info(f"已删除关联的筛选结果 {len(screening_results)} 条: {resume_id}")
+
             await db.delete(resume)
             await db.commit()
             logger.info(f"简历记录已从数据库删除: {resume_id}, 用户: {current_user['username']}")
@@ -210,8 +220,6 @@ async def delete_resume(
             logger.info(f"简历文件已删除: {resume_id}, 用户: {current_user['username']}")
         else:
             logger.warning(f"简历文件不存在: {resume_id}")
-
-        # 这里还需要从向量数据库中删除
 
         return {"success": True, "message": "简历删除成功"}
 
@@ -270,6 +278,20 @@ async def batch_delete_resumes(
                 resume = result.scalar_one_or_none()
 
                 if resume:
+                    # 删除关联的筛选结果记录
+                    sr_result = await db.execute(
+                        select(ScreeningResult).where(
+                            ScreeningResult.resume_id == resume_id
+                        )
+                    )
+                    screening_results = sr_result.scalars().all()
+                    if screening_results:
+                        for sr in screening_results:
+                            await db.delete(sr)
+                        logger.info(
+                            f"已删除关联的筛选结果 {len(screening_results)} 条: {resume_id}"
+                        )
+
                     await db.delete(resume)
                     await db.commit()
                     deleted_count += 1
