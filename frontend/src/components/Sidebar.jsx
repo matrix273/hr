@@ -7,7 +7,8 @@ import {
   SearchOutlined,
   TeamOutlined,
   CreditCardOutlined,
-  BankOutlined
+  BankOutlined,
+  AuditOutlined
 } from '@ant-design/icons';
 import { hasAnyPermission } from '../utils/permissions';
 import { Permission } from '../utils/permissions';
@@ -22,6 +23,9 @@ const Sidebar = ({ activeItem, onItemClick, collapsed }) => {
     Permission.COMPANY_UPDATE,
     Permission.COMPANY_DELETE
   ]);
+
+  // 审计日志仅管理员可见
+  const canViewAudit = hasAnyPermission([Permission.AUDIT_READ]);
 
   const menuItems = [
     {
@@ -59,6 +63,11 @@ const Sidebar = ({ activeItem, onItemClick, collapsed }) => {
       icon: <CreditCardOutlined />,
       label: '会员订阅'
     },
+    ...(canViewAudit ? [{
+      key: 'audit',
+      icon: <AuditOutlined />,
+      label: '审计日志'
+    }] : []),
   ];
 
   return (

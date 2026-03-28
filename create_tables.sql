@@ -5,16 +5,20 @@
 -- 1. 公司表
 -- ============================================================
 CREATE TABLE companies (
-    id              VARCHAR(50)  PRIMARY KEY,
-    name            VARCHAR(100) NOT NULL,
-    invite_code     VARCHAR(10)  UNIQUE NOT NULL,
-    created_at      TIMESTAMPTZ  DEFAULT CURRENT_TIMESTAMP
+    id                    VARCHAR(50)  PRIMARY KEY,
+    name                  VARCHAR(100) NOT NULL,
+    invite_code           VARCHAR(10)  UNIQUE NOT NULL,
+    subscription_plan     VARCHAR(50)  DEFAULT 'free',
+    subscription_expires  TIMESTAMPTZ,
+    created_at            TIMESTAMPTZ  DEFAULT CURRENT_TIMESTAMP
 );
 
-COMMENT ON TABLE  companies            IS '公司表';
-COMMENT ON COLUMN companies.id         IS '公司ID';
-COMMENT ON COLUMN companies.name       IS '公司名称';
-COMMENT ON COLUMN companies.invite_code IS '邀请码';
+COMMENT ON TABLE  companies                       IS '公司表';
+COMMENT ON COLUMN companies.id                    IS '公司ID';
+COMMENT ON COLUMN companies.name                  IS '公司名称';
+COMMENT ON COLUMN companies.invite_code           IS '邀请码';
+COMMENT ON COLUMN companies.subscription_plan     IS '公司订阅套餐';
+COMMENT ON COLUMN companies.subscription_expires  IS '公司订阅过期时间';
 
 CREATE INDEX idx_companies_invite_code ON companies(invite_code);
 
@@ -190,3 +194,26 @@ INSERT INTO subscription_plans (id, name, description, price, duration_days, max
 ('basic',        '基础版', '适合小型团队', 99,   30, 100,  10,  TRUE,  FALSE, TRUE),
 ('professional', '专业版', '适合中型企业', 299,  30, 500,  50,  TRUE,  TRUE,  TRUE),
 ('enterprise',   '企业版', '适合大型企业', 999,  30, 1000, 100, TRUE,  TRUE,  TRUE);
+
+-- ============================================================
+-- 9. 审计日志表
+-- ============================================================
+CREATE TABLE audit_logs (
+    id              SERIAL       PRIMARY KEY,
+    operator_id     VARCHAR(50)  NOT NULL,
+    operator_name   VARCHAR(50)  NOT NULL,
+    action          VARCHAR(50)  NOT NULL,
+    target_type     VARCHAR(50)  NOT NULL,
+    target_id       VARCHAR(50)  NOT NULL,
+    detail          TEXT,
+    ip_address      VARCHAR(50),
+    created_at      TIMESTAMPTZ  DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE  audit_logs                    IS '审计日志表';
+COMMENT ON COLUMN audit_logs.action             IS '操作类型: update_user/delete_user 等';
+COMMENT ON COLUMN audit_logs.target_type        IS '目标类型: user/company 等';
+COMMENT ON COLUMN audit_logs.detail             IS '变更详情JSON，如 {"email": {"old": "a@b.com", "new": "c@d.com"}}';
+
+CREATE INDEX idx_audit_logs_operator_id ON audit_logs(operator_id);
+CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at);

@@ -104,6 +104,8 @@ from .routes.payment import router as payment_router
 app.include_router(payment_router)
 from .routes.companies import router as companies_router
 app.include_router(companies_router)
+from .routes.audit import router as audit_router
+app.include_router(audit_router)
 
 
 @app.get("/", tags=["Root"])

@@ -108,6 +108,10 @@ async def send_verification_code(email: str, purpose: str = "register") -> dict:
         subject = "【AI简历筛选系统】重置密码验证码"
         action_text = "重置密码"
         description = "您正在重置 AI简历筛选系统 账号的密码，验证码为："
+    elif purpose == "change_email":
+        subject = "【AI简历筛选系统】修改邮箱验证码"
+        action_text = "修改邮箱"
+        description = "您正在修改 AI简历筛选系统 账号的邮箱地址，验证码为："
     else:
         subject = "【AI简历筛选系统】注册验证码"
         action_text = "注册账号"

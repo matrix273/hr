@@ -1,12 +1,12 @@
 """用户管理路由"""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from ..database import get_db
-from ..models.user import User, Contact, Company
+from ..models.user import User, Contact, Company, AuditLog
 from ..auth import (
     get_password_hash,
     get_current_active_user,
@@ -56,6 +56,7 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
     password: Optional[str] = None
     company_id: Optional[str] = None
+    verification_code: Optional[str] = None
 
 
 class UserResponse(BaseModel):
@@ -282,6 +283,7 @@ async def get_user(
 async def update_user(
     user_id: str,
     user_data: UserUpdate,
+    request: Request,
     current_user: dict = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -331,8 +333,30 @@ async def update_user(
             detail="无权创建或修改为管理员角色"
         )
 
+    # 记录变更前的快照（用于审计日志）
+    old_snapshot = {
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role,
+        "is_active": user.is_active,
+        "company_id": user.company_id,
+    }
+    changes = {}
+
     # 更新字段
-    if user_data.email is not None:
+    if user_data.email is not None and user_data.email != user.email:
+        # 修改邮箱需要验证码
+        if not user_data.verification_code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="修改邮箱需要先发送验证码到当前邮箱（{email}）并填写".format(email=user.email)
+            )
+        from ..services.email_service import verify_code
+        if not verify_code(user.email, user_data.verification_code):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="邮箱验证码错误或已过期"
+            )
         # 检查邮箱是否被其他用户使用
         email_result = await db.execute(
             select(User).where(User.email == user_data.email, User.id != user_id)
@@ -342,9 +366,12 @@ async def update_user(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="邮箱已被其他用户使用"
             )
+        changes["email"] = {"old": user.email, "new": user_data.email}
         user.email = user_data.email
 
     if user_data.full_name is not None:
+        if user_data.full_name != user.full_name:
+            changes["full_name"] = {"old": user.full_name, "new": user_data.full_name}
         user.full_name = user_data.full_name
 
     if user_data.role is not None:
@@ -356,35 +383,60 @@ async def update_user(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"无效的角色，可选值: {[r.value for r in Role]}"
             )
+        if user_data.role != user.role:
+            changes["role"] = {"old": user.role, "new": user_data.role}
         user.role = user_data.role
 
     if user_data.is_active is not None:
+        if user_data.is_active != user.is_active:
+            changes["is_active"] = {"old": user.is_active, "new": user_data.is_active}
         user.is_active = user_data.is_active
 
     if user_data.password is not None and user_data.password.strip():
         user.password_hash = get_password_hash(user_data.password)
-        logger.info(f"更新用户密码: {user.username}")
+        changes["password"] = {"old": "***", "new": "***（已修改）"}
 
     # 管理员可变更用户的公司关联
     if "company_id" in user_data.model_fields_set and current_user_role == Role.ADMIN:
         new_company_id = user_data.company_id.strip() if user_data.company_id else None
-        if new_company_id:
-            # 验证公司是否存在
-            company_result = await db.execute(
-                select(Company).where(Company.id == new_company_id)
-            )
-            if not company_result.scalar_one_or_none():
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="目标公司不存在"
+        if new_company_id != user.company_id:
+            if new_company_id:
+                # 验证公司是否存在
+                company_result = await db.execute(
+                    select(Company).where(Company.id == new_company_id)
                 )
+                if not company_result.scalar_one_or_none():
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="目标公司不存在"
+                    )
+            changes["company_id"] = {"old": user.company_id, "new": new_company_id}
         user.company_id = new_company_id
-        logger.info(f"更新用户 {user.username} 公司关联为: {new_company_id or '无'}")
 
     await db.commit()
     await db.refresh(user)
 
-    logger.info(f"更新用户: {user.username}, 操作者: {current_user['username']}")
+    # 写入审计日志
+    if changes:
+        import json
+        me_result = await db.execute(
+            select(User).where(User.username == current_user["username"])
+        )
+        me = me_result.scalar_one_or_none()
+        operator_id = me.id if me else current_user["id"]
+        audit = AuditLog(
+            operator_id=operator_id,
+            operator_name=current_user["username"],
+            action="update_user",
+            target_type="user",
+            target_id=user_id,
+            detail=json.dumps(changes, ensure_ascii=False, default=str),
+            ip_address=request.client.host if request.client else None,
+        )
+        db.add(audit)
+        await db.commit()
+
+    logger.info(f"更新用户: {user.username}, 操作者: {current_user['username']}, 变更: {list(changes.keys())}")
 
     return UserResponse(
         id=user.id,
@@ -397,6 +449,40 @@ async def update_user(
         created_at=user.created_at.isoformat() if user.created_at else None,
         updated_at=user.updated_at.isoformat() if user.updated_at else None
     )
+
+
+@router.post("/{user_id}/send-email-code")
+async def send_email_verify_code(
+    user_id: str,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """发送邮箱修改验证码到用户当前邮箱（需要用户更新权限）"""
+    if not check_permission(Permission.USER_UPDATE, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"缺少所需权限: {Permission.USER_UPDATE.value}"
+        )
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="用户不存在"
+        )
+
+    from ..services.email_service import send_verification_code
+    result = await send_verification_code(user.email, purpose="change_email")
+
+    if not result["success"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result["detail"]
+        )
+
+    return {"success": True, "detail": f"验证码已发送至 {user.email}"}
 
 
 @router.delete("/{user_id}")

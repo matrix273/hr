@@ -35,7 +35,8 @@ import {
   UserOutlined,
   MailOutlined,
   LockOutlined,
-  BankOutlined
+  BankOutlined,
+  SafetyOutlined
 } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
@@ -50,6 +51,9 @@ const UserManagement = () => {
   const [form] = Form.useForm();
   const [companies, setCompanies] = useState([]);
   const isAdmin = getCurrentUser()?.role === 'admin';
+  // 邮箱验证码相关
+  const [emailCodeCountdown, setEmailCodeCountdown] = useState(0);
+  const [emailCodeLoading, setEmailCodeLoading] = useState(false);
 
   const roles = [
     { value: 'admin', label: '管理员' },
@@ -64,6 +68,15 @@ const UserManagement = () => {
     fetchUsers();
     if (isAdmin) fetchCompanies();
   }, []);
+
+  // 邮箱验证码倒计时
+  useEffect(() => {
+    if (emailCodeCountdown <= 0) return;
+    const timer = setTimeout(() => {
+      setEmailCodeCountdown(emailCodeCountdown - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [emailCodeCountdown]);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -108,8 +121,9 @@ const UserManagement = () => {
       setError('无权编辑管理员账号');
       return;
     }
-    
+
     setModalMode('edit');
+    setEmailCodeCountdown(0);
     form.setFieldsValue({
       username: user.username,
       email: user.email,
@@ -144,6 +158,21 @@ const UserManagement = () => {
     }
   };
 
+  /** 发送邮箱修改验证码到当前用户邮箱 */
+  const handleSendEmailCode = async () => {
+    if (!currentUser?.id) return;
+    setEmailCodeLoading(true);
+    try {
+      const response = await api.post(`/users/${currentUser.id}/send-email-code`);
+      message.success(response.data?.detail || '验证码已发送');
+      setEmailCodeCountdown(60);
+    } catch (err) {
+      setError(err.response?.data?.detail || '发送验证码失败');
+    } finally {
+      setEmailCodeLoading(false);
+    }
+  };
+
   const handleSubmit = async (values) => {
     setError('');
 
@@ -160,6 +189,10 @@ const UserManagement = () => {
         // 明确传 null 以解除公司关联（undefined 会被 JSON 序列化忽略）
         if (updateData.company_id === undefined) {
           updateData.company_id = null;
+        }
+        // 邮箱有变更时，带上验证码
+        if (updateData.email === currentUser.email) {
+          delete updateData.verification_code;
         }
         const response = await api.put(`/users/${currentUser.id}`, updateData);
         setUsers(users.map(u => u.id === currentUser.id ? response.data : u));
@@ -271,7 +304,7 @@ const UserManagement = () => {
                 size="small"
                 icon={<DeleteOutlined />}
                 onClick={() => handleDelete(user)}
-                disabled={isButtonDisabled(Permission.USER_DELETE)}
+                disabled={isButtonDisabled(Permission.USER_DELETE) || user.username === getCurrentUser()?.username}
               >
                 删除
               </Button>
@@ -388,21 +421,53 @@ const UserManagement = () => {
                 </Form.Item>
               </Col>
             )}
-            <Col span={modalMode === 'create' ? 12 : 12}>
-              <Form.Item
-                label="邮箱"
-                name="email"
-                rules={[
-                  { required: true, message: '请输入邮箱' },
-                  { type: 'email', message: '请输入有效的邮箱地址' }
-                ]}
-              >
-                <Input
-                  prefix={<MailOutlined />}
-                  placeholder="请输入邮箱地址"
-                />
-              </Form.Item>
-            </Col>
+            {modalMode === 'create' ? (
+              <Col span={12}>
+                <Form.Item
+                  label="邮箱"
+                  name="email"
+                  rules={[
+                    { required: true, message: '请输入邮箱' },
+                    { type: 'email', message: '请输入有效的邮箱地址' }
+                  ]}
+                >
+                  <Input
+                    prefix={<MailOutlined />}
+                    placeholder="请输入邮箱地址"
+                  />
+                </Form.Item>
+              </Col>
+            ) : (
+              <Col span={12}>
+                <Form.Item
+                  label={
+                    <Space>
+                      邮箱
+                      {currentUser?.email && (
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          当前: {currentUser.email}
+                        </Text>
+                      )}
+                    </Space>
+                  }
+                  name="email"
+                  rules={[
+                    { required: true, message: '请输入邮箱' },
+                    { type: 'email', message: '请输入有效的邮箱地址' }
+                  ]}
+                  extra={
+                    currentUser?.email
+                      ? '修改邮箱需先发送验证码到当前邮箱进行确认'
+                      : undefined
+                  }
+                >
+                  <Input
+                    prefix={<MailOutlined />}
+                    placeholder="请输入新邮箱地址"
+                  />
+                </Form.Item>
+              </Col>
+            )}
             <Col span={modalMode === 'create' ? 12 : 12}>
               <Form.Item label="姓名" name="full_name">
                 <Input
@@ -411,6 +476,30 @@ const UserManagement = () => {
               </Form.Item>
             </Col>
           </Row>
+
+          {modalMode === 'edit' && currentUser?.email && (
+            <Form.Item label="邮箱验证码" name="verification_code"
+              help="修改邮箱时必填"
+            >
+              <Space.Compact style={{ width: '100%' }}>
+                <Input
+                  prefix={<SafetyOutlined />}
+                  placeholder="请输入验证码"
+                  maxLength={6}
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  onClick={handleSendEmailCode}
+                  loading={emailCodeLoading}
+                  disabled={emailCodeCountdown > 0}
+                >
+                  {emailCodeCountdown > 0
+                    ? `${emailCodeCountdown}s 后重发`
+                    : '发送验证码'}
+                </Button>
+              </Space.Compact>
+            </Form.Item>
+          )}
           
           {modalMode === 'edit' && (
             <Form.Item label="新密码" name="password" help="留空则保持原密码不变">

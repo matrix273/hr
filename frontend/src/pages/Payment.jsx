@@ -256,8 +256,13 @@ const PaymentPage = () => {
                 }}>
                     <div>
                         <Text type="secondary">当前套餐</Text>
-                        <div style={{ fontSize: '24px', fontWeight: 'bold', marginTop: '4px', marginBottom: '12px' }}>
-                            {planNameMap[userInfo?.subscription_plan] || '未知'}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: '4px', marginBottom: '12px' }}>
+                            <span style={{ fontSize: '24px', fontWeight: 'bold' }}>
+                                {planNameMap[userInfo?.subscription_plan] || '未知'}
+                            </span>
+                            {userInfo?.is_company_plan && (
+                                <Tag color="blue">{userInfo.company_name}（公司订阅）</Tag>
+                            )}
                         </div>
                         {currentPlanDetail && (
                             <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
@@ -265,18 +270,22 @@ const PaymentPage = () => {
                                     <FileTextOutlined style={{ color: '#4f46e5' }} />
                                     <Text type="secondary">
                                         筛选简历 <Text strong>{userInfo?.usage?.screening_used ?? 0}</Text> / <Text strong>{currentPlanDetail.max_resumes}</Text> 份/月
+                                        {userInfo?.is_company_plan && '（公司合计）'}
                                     </Text>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <PlusCircleOutlined style={{ color: '#4f46e5' }} />
                                     <Text type="secondary">
                                         新增岗位 <Text strong>{userInfo?.usage?.jobs_used ?? 0}</Text> / <Text strong>{currentPlanDetail.max_jobs}</Text> 个/月
+                                        {userInfo?.is_company_plan && '（公司合计）'}
                                     </Text>
                                 </div>
                             </div>
                         )}
                         <div style={{ marginTop: '8px', fontSize: '12px', color: '#999' }}>
-                            筛选简历：AI 每次筛选的 Top K 份简历数量按月累计
+                            {userInfo?.is_company_plan
+                                ? '公司所有成员共享配额，由公司管理员统一购买套餐'
+                                : '筛选简历：AI 每次筛选的 Top K 份简历数量按月累计'}
                         </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>

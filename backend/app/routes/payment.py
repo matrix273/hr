@@ -8,10 +8,10 @@ from typing import List
 
 from ..auth.jwt import get_current_user
 from ..database import AsyncSessionLocal, get_db
-from ..models.user import User
+from ..models.user import User, Company
 from ..models.payment import PaymentOrder, SubscriptionPlan
 from ..services.payment import SimplePaymentService
-from ..services.subscription import get_user_plan, get_user_usage
+from ..services.subscription import get_user_plan, get_subscription_info
 from ..utils.logger import logger
 
 router = APIRouter(prefix="/api/payment", tags=["payment"])
@@ -70,11 +70,24 @@ async def init_default_plans():
 
 async def _check_subscription_expiry(user: User, db: AsyncSession):
     """检查订阅是否到期，到期自动降级为免费版"""
+    # 检查个人订阅到期
     if (user.subscription_plan != "free"
             and user.subscription_expires
             and user.subscription_expires <= datetime.now(timezone.utc)):
         user.subscription_plan = "free"
         user.subscription_expires = None
+
+    # 检查公司订阅到期
+    if user.company_id:
+        company = await db.execute(
+            select(Company).where(Company.id == user.company_id)
+        )
+        company = company.scalar_one_or_none()
+        if company and company.subscription_plan != "free":
+            if (company.subscription_expires
+                    and company.subscription_expires <= datetime.now(timezone.utc)):
+                company.subscription_plan = "free"
+                company.subscription_expires = None
         await db.commit()
 
 
@@ -146,8 +159,20 @@ async def create_payment_qrcode(
             status="paid"
         )
         db.add(order)
-        current_user.subscription_plan = plan_id
-        current_user.subscription_expires = None
+
+        # 更新订阅：有公司则更新公司订阅
+        if current_user.company_id:
+            company_result = await db.execute(
+                select(Company).where(Company.id == current_user.company_id)
+            )
+            company = company_result.scalar_one_or_none()
+            if company:
+                company.subscription_plan = plan_id
+                company.subscription_expires = None
+        else:
+            current_user.subscription_plan = plan_id
+            current_user.subscription_expires = None
+
         await db.commit()
         await db.refresh(order)
         return {
@@ -243,18 +268,27 @@ async def confirm_payment(
     order.status = "paid"
     order.paid_at = datetime.now(timezone.utc)
 
-    current_user.subscription_plan = order.product_id
-    current_user.balance += order.amount
-
     # 根据套餐有效期设置到期时间
     plan_result = await db.execute(
         select(SubscriptionPlan).where(SubscriptionPlan.id == order.product_id)
     )
     plan = plan_result.scalar_one_or_none()
+    expires = None
     if plan and plan.duration_days > 0:
-        current_user.subscription_expires = datetime.now(timezone.utc) + timedelta(days=plan.duration_days)
+        expires = datetime.now(timezone.utc) + timedelta(days=plan.duration_days)
+
+    # 更新订阅：有公司则更新公司订阅
+    if current_user.company_id:
+        company_result = await db.execute(
+            select(Company).where(Company.id == current_user.company_id)
+        )
+        company = company_result.scalar_one_or_none()
+        if company:
+            company.subscription_plan = order.product_id
+            company.subscription_expires = expires
     else:
-        current_user.subscription_expires = None
+        current_user.subscription_plan = order.product_id
+        current_user.subscription_expires = expires
 
     await db.commit()
     await db.refresh(order)
@@ -282,14 +316,15 @@ async def get_user_payment_info(
     current_user: User = Depends(get_current_user_object),
     db: AsyncSession = Depends(get_db)
 ):
-    """获取用户支付信息"""
-    plan = await get_user_plan(current_user, db)
-    usage = await get_user_usage(current_user.id, db)
+    """获取用户支付信息（含公司订阅）"""
+    info = await get_subscription_info(current_user, db)
     return {
         "balance": current_user.balance,
-        "subscription_plan": current_user.subscription_plan,
-        "subscription_expires": current_user.subscription_expires,
+        "subscription_plan": info["subscription_plan"],
+        "subscription_expires": info["subscription_expires"],
+        "is_company_plan": info["is_company_plan"],
+        "company_name": info["company_name"],
         "can_use_ai_screening": current_user.subscription_plan != "free",
-        "plan": plan,
-        "usage": usage,
+        "plan": info["plan"],
+        "usage": info["usage"],
     }

@@ -15,6 +15,9 @@ class Company(Base):
     id = Column(String(50), primary_key=True)
     name = Column(String(100), nullable=False, comment="公司名称")
     invite_code = Column(String(10), unique=True, nullable=False, index=True, comment="邀请码")
+    # 订阅相关字段
+    subscription_plan = Column(String(50), default="free", comment="公司订阅套餐")
+    subscription_expires = Column(DateTime(timezone=True), comment="公司订阅过期时间")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     @staticmethod
@@ -23,6 +26,21 @@ class Company(Base):
         chars = string.ascii_uppercase + string.digits
         chars = chars.replace("O", "").replace("0", "").replace("I", "").replace("1", "").replace("L", "")
         return "".join(random.choices(chars, k=length))
+
+
+class AuditLog(Base):
+    """审计日志模型"""
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    operator_id = Column(String(50), nullable=False, index=True, comment="操作人ID")
+    operator_name = Column(String(50), nullable=False, comment="操作人用户名")
+    action = Column(String(50), nullable=False, comment="操作类型")
+    target_type = Column(String(50), nullable=False, comment="目标类型")
+    target_id = Column(String(50), nullable=False, comment="目标ID")
+    detail = Column(Text, comment="变更详情JSON")
+    ip_address = Column(String(50), comment="IP地址")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class User(Base):

@@ -36,7 +36,10 @@ export const Permission = {
   COMPANY_READ: "company:read",
   COMPANY_CREATE: "company:create",
   COMPANY_UPDATE: "company:update",
-  COMPANY_DELETE: "company:delete"
+  COMPANY_DELETE: "company:delete",
+
+  // 审计日志
+  AUDIT_READ: "system:admin"
 };
 
 /**

@@ -9,6 +9,7 @@ import Screening from './Screening';
 import UserManagement from './UserManagement';
 import CompanyManagement from './CompanyManagement';
 import Payment from './Payment';
+import AuditLog from './AuditLog';
 import Sidebar from '../components/Sidebar';
 
 const { Header, Content, Sider } = Layout;
@@ -160,6 +161,10 @@ const Dashboard = () => {
 
           {activeTab === 'payment' && (
             <Payment />
+          )}
+
+          {activeTab === 'audit' && (
+            <AuditLog />
           )}
 
         </Content>
