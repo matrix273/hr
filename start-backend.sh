@@ -15,6 +15,14 @@ fi
 # Set PYTHONPATH（使用相对路径）
 export PYTHONPATH="$PWD/backend:$PYTHONPATH"
 
+# Kill existing backend process
+EXISTING_PID=$(lsof -ti:8000 2>/dev/null)
+if [ -n "$EXISTING_PID" ]; then
+    echo "🛑 Killing existing backend process (PID: $EXISTING_PID)..."
+    kill -9 $EXISTING_PID 2>/dev/null
+    sleep 1
+fi
+
 # Start FastAPI server（4 workers）
 echo "📡 Starting FastAPI on http://localhost:8000"
 cd backend
