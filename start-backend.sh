@@ -3,6 +3,8 @@
 
 echo "🚀 Starting Backend Server..."
 
+cd "$(dirname "$0")"
+
 # Check if .env exists
 if [ ! -f .env ]; then
     echo "⚠️  .env file not found. Copying from .env.example..."
@@ -10,9 +12,10 @@ if [ ! -f .env ]; then
     echo "📝 Please configure .env with your actual values."
 fi
 
-# Set PYTHONPATH
-export PYTHONPATH="/Users/matrix273/PycharmProjects/hr/backend"
+# Set PYTHONPATH（使用相对路径）
+export PYTHONPATH="$PWD/backend:$PYTHONPATH"
 
-# Start FastAPI server
+# Start FastAPI server（4 workers）
 echo "📡 Starting FastAPI on http://localhost:8000"
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+cd backend
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4

@@ -89,9 +89,9 @@ sleep 3
 echo "⚡ 启动FastAPI Backend..."
 cd backend
 if [ "$USE_UV" = true ]; then
-    uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload > ../logs/fastapi.log 2>&1 &
+    uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 > ../logs/fastapi.log 2>&1 &
 else
-    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload > ../logs/fastapi.log 2>&1 &
+    uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 > ../logs/fastapi.log 2>&1 &
 fi
 BACKEND_PID=$!
 echo "✅ FastAPI Backend已启动 (PID: $BACKEND_PID)"
