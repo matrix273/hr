@@ -171,7 +171,7 @@ const Register = () => {
           <Button
             type="text"
             icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/login')}
             style={{
               position: 'absolute',
               left: 0,
