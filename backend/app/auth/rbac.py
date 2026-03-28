@@ -148,6 +148,8 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.RESUME_READ,
         # 岗位管理 - 可查看岗位信息
         Permission.JOB_READ,
+        # 筛选管理 - 可执行筛选（受套餐配额约束）
+        Permission.SCREENING_EXECUTE,
     },
 }
 

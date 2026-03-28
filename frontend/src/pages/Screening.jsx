@@ -288,7 +288,9 @@ const Screening = () => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = '简历筛选结果.md';
+        const jobName = selectedJob?.title || filterJob?.title || '自定义筛选';
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '_');
+        link.download = `${timestamp}_${jobName}_${data.length}份.md`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -351,8 +353,9 @@ const Screening = () => {
       const link = document.createElement('a');
       
       // 生成与PDF一致的文件名
+      const jobName = selectedJob?.title || filterJob?.title || '自定义筛选';
       const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '_');
-      const filename = `${timestamp}_简历筛选报告_${data.length}份.md`;
+      const filename = `${timestamp}_${jobName}_${data.length}份.md`;
       
       link.href = url;
       link.download = filename;
@@ -441,9 +444,9 @@ const Screening = () => {
       markdownContent += `---\n\n`;
     });
     
-    // 生成与PDF一致的文件名
+    const jobName = selectedJob?.title || filterJob?.title || '自定义筛选';
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '_');
-    const filename = `${timestamp}_简历筛选报告_${data.length}份.md`;
+    const filename = `${timestamp}_${jobName}_${data.length}份.md`;
     
     // 创建下载链接
     const blob = new Blob([markdownContent], { type: 'text/markdown' });
@@ -517,14 +520,15 @@ const Screening = () => {
   }, []);
 
   // 保存配置
-  const saveConfig = () => {
+  const saveConfig = (overrides = {}) => {
     const config = {
       topK,
       selectedModel,
       useJobId,
       jobDescription,
       selectedJobId: selectedJob?.job_id,
-      exportType
+      exportType,
+      ...overrides
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
   };
@@ -856,7 +860,7 @@ const Screening = () => {
         alignItems: 'center',
         marginBottom: '16px'
       }}>
-        <Title level={2} style={{ margin: 0, color: '#262626' }}>
+        <Title level={2} style={{ marginTop: 0, marginBottom: 0, color: '#262626' }}>
           简历筛选
         </Title>
       </div>
@@ -1103,7 +1107,7 @@ const Screening = () => {
                         selectedKeys: [exportType],
                         onClick: ({ key }) => {
                           setExportType(key);
-                          saveConfig();
+                          saveConfig({ exportType: key });
                         },
                         items: [
                           { key: 'pdf', label: 'PDF 格式' },

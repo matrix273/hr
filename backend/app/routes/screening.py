@@ -1243,6 +1243,7 @@ async def export_pdf(
         
         # 查询筛选结果
         results = []
+        job_title = None
         for result_id in result_ids:
             # 查询筛选结果
             query_result = await db.execute(
@@ -1255,6 +1256,16 @@ async def export_pdf(
             screening_result = query_result.scalar_one_or_none()
             
             if screening_result:
+                # 获取岗位名称（仅查一次）
+                if not job_title:
+                    if screening_result.job_id.startswith('custom_'):
+                        job_title = '自定义筛选'
+                    else:
+                        job_query = await db.execute(
+                            select(Job.title).where(Job.job_id == screening_result.job_id)
+                        )
+                        job_title = job_query.scalar_one_or_none() or '未知岗位'
+
                 # 获取简历信息
                 resume_result = await db.execute(
                     select(Resume).where(Resume.resume_id == screening_result.resume_id)
@@ -1281,9 +1292,9 @@ async def export_pdf(
         logger.info(f"开始生成PDF报告, 用户: {current_user['username']}, 结果数: {len(results)}")
         pdf_bytes = generate_pdf_report(results)
         
-        # 返回PDF响应 - 使用RFC 5987编码中文文件名
+        # 返回PDF响应 - 文件名: 时间_岗位_几份
         timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        filename = f"{timestamp}_简历筛选报告_{len(results)}份.pdf"
+        filename = f"{timestamp}_{job_title}_{len(results)}份.pdf"
         
         # 正确编码中文文件名
         encoded_filename = quote(filename, encoding='utf-8')

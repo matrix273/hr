@@ -544,7 +544,7 @@ const PaymentPage = () => {
                         closable={false}
                         width={420}
                         centered
-                        destroyOnClose
+                        destroyOnHidden
                     >
                         <div style={{ textAlign: 'center', padding: '8px 0' }}>
                             <Title level={4} style={{ marginBottom: 8 }}>
@@ -627,7 +627,7 @@ const PaymentPage = () => {
                         onCancel={resetPayment}
                         width={400}
                         centered
-                        destroyOnClose
+                        destroyOnHidden
                     >
                         <div style={{ textAlign: 'center', padding: '24px 0' }}>
                             <CheckCircleOutlined

@@ -324,7 +324,7 @@ async def get_user_payment_info(
         "subscription_expires": info["subscription_expires"],
         "is_company_plan": info["is_company_plan"],
         "company_name": info["company_name"],
-        "can_use_ai_screening": current_user.subscription_plan != "free",
+        "can_use_ai_screening": info["plan"].get("ai_screening", False),
         "plan": info["plan"],
         "usage": info["usage"],
     }

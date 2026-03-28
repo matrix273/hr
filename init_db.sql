@@ -244,7 +244,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at  ON audit_logs(created_at);
 -- 默认订阅套餐（ON CONFLICT 保证可重复执行）
 INSERT INTO subscription_plans (id, name, description, price, duration_days, max_resumes, max_jobs, ai_screening, priority_support, is_active)
 VALUES
-    ('free',         '免费版', '基础功能体验', 0,   30, 10,   3,   FALSE, FALSE, TRUE),
+    ('free',         '免费版', '基础功能体验', 0,   30, 10,   3,   TRUE, FALSE, TRUE),
     ('basic',        '基础版', '适合小型团队', 99,  30, 100,  10,  TRUE,  FALSE, TRUE),
     ('professional', '专业版', '适合中型企业', 299, 30, 500,  50,  TRUE,  TRUE,  TRUE),
     ('enterprise',   '企业版', '适合大型企业', 999, 30, 1000, 100, TRUE,  TRUE,  TRUE)
