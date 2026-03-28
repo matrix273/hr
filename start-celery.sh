@@ -18,4 +18,9 @@ fi
 export PYTHONPATH="$PWD/backend:$PYTHONPATH"
 
 echo "🚀 启动 Celery Worker..."
-celery -A backend.celery_main worker --loglevel=info --concurrency=4
+cd backend
+if command -v uv &> /dev/null; then
+    uv run celery -A app.celery_app worker --loglevel=info --concurrency=4
+else
+    celery -A app.celery_app worker --loglevel=info --concurrency=4
+fi
