@@ -449,7 +449,7 @@ const Home = () => {
                   前端
                 </Title>
                 <Paragraph style={{ color: '#666', fontSize: '16px', fontWeight: '500' }}>
-                  React / Vite
+                  React / Ant Design
                 </Paragraph>
               </Card>
             </Col>
