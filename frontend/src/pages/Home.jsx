@@ -495,9 +495,17 @@ const Home = () => {
 
       {/* Footer */}
       <div style={{ background: '#141414', color: '#f0f0f0', padding: '24px 0', textAlign: 'center' }}>
-        <Paragraph style={{ marginBottom: '16px', fontSize: '14px', color: '#cccccc' }}>
+        <Paragraph style={{ marginBottom: '8px', fontSize: '14px', color: '#cccccc' }}>
           &copy; 2025 AI 简历筛选系统. All rights reserved.
         </Paragraph>
+        <a
+          href="https://beian.miit.gov.cn/"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#999999', textDecoration: 'none' }}
+        >
+          粤ICP备19036803号-2
+        </a>
         <Paragraph 
           style={{ 
             color: '#4f46e5',
