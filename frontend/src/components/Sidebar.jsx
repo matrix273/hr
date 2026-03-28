@@ -6,33 +6,32 @@ import {
   FileSearchOutlined,
   SearchOutlined,
   TeamOutlined,
-
   CreditCardOutlined
 } from '@ant-design/icons';
 
 const { Title } = Typography;
 
-const Sidebar = ({ activeItem, onItemClick }) => {
+const Sidebar = ({ activeItem, onItemClick, collapsed }) => {
   const menuItems = [
-    { 
-      key: 'upload', 
-      icon: <UploadOutlined />, 
-      label: '上传简历' 
+    {
+      key: 'upload',
+      icon: <UploadOutlined />,
+      label: '上传简历'
     },
-    { 
-      key: 'list', 
-      icon: <FileTextOutlined />, 
-      label: '简历管理' 
+    {
+      key: 'list',
+      icon: <FileTextOutlined />,
+      label: '简历管理'
     },
-    { 
-      key: 'jobs', 
-      icon: <FileSearchOutlined />, 
-      label: '岗位管理' 
+    {
+      key: 'jobs',
+      icon: <FileSearchOutlined />,
+      label: '岗位管理'
     },
-    { 
-      key: 'screening', 
-      icon: <SearchOutlined />, 
-      label: '简历筛选' 
+    {
+      key: 'screening',
+      icon: <SearchOutlined />,
+      label: '简历筛选'
     },
     {
       key: 'users',
@@ -47,30 +46,34 @@ const Sidebar = ({ activeItem, onItemClick }) => {
   ];
 
   return (
-    <div style={{ 
+    <div style={{
       height: '100%',
       background: 'white',
       borderRight: '1px solid #f0f0f0'
     }}>
-      <div style={{ 
-        padding: '24px 20px',
-        borderBottom: '1px solid #f0f0f0'
+      <div style={{
+        padding: collapsed ? '24px 0' : '24px 20px',
+        borderBottom: '1px solid #f0f0f0',
+        textAlign: collapsed ? 'center' : 'left'
       }}>
-        <Title level={4} style={{ 
-          margin: 0, 
+        <Title level={4} style={{
+          margin: 0,
           color: '#262626',
-          fontSize: '16px'
+          fontSize: '16px',
+          overflow: 'hidden',
+          whiteSpace: 'nowrap'
         }}>
-          功能菜单
+          {collapsed ? 'HR' : '功能菜单'}
         </Title>
       </div>
-      
+
       <Menu
         mode="inline"
         selectedKeys={[activeItem]}
         onClick={({ key }) => onItemClick(key)}
         items={menuItems}
-        style={{ 
+        inlineCollapsed={collapsed}
+        style={{
           border: 'none',
           background: 'transparent'
         }}

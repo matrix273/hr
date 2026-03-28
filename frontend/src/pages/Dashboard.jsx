@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout, Button, Typography, Space, message } from 'antd';
-import { LogoutOutlined } from '@ant-design/icons';
+import { LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
 import ResumeUpload from './ResumeUpload';
 import ResumeList from '../components/ResumeList';
 import JobManagement from './JobManagement';
@@ -22,6 +22,11 @@ const Dashboard = () => {
   });
   const [uploadedResumes, setUploadedResumes] = useState([]);
   const [refreshList, setRefreshList] = useState(0);
+  const [collapsed, setCollapsed] = useState(() => {
+    return localStorage.getItem('sidebarCollapsed') === 'true';
+  });
+  const [siderHovered, setSiderHovered] = useState(false);
+  const siderCollapsed = collapsed && !siderHovered;
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -40,6 +45,14 @@ const Dashboard = () => {
     setActiveTab(itemId);
     // 保存当前 tab 到 localStorage
     localStorage.setItem('activeTab', itemId);
+  };
+
+  const toggleCollapsed = () => {
+    setCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('sidebarCollapsed', String(next));
+      return next;
+    });
   };
 
   // 监听子组件触发的 tab 切换事件
@@ -70,9 +83,17 @@ const Dashboard = () => {
           alignItems: 'center',
           height: '64px'
         }}>
-          <Title level={3} style={{ margin: 0, color: '#4f46e5' }}>
-            AI 简历筛选系统
-          </Title>
+          <Space>
+            <Button
+              type="text"
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={toggleCollapsed}
+              style={{ fontSize: '16px' }}
+            />
+            <Title level={3} style={{ margin: 0, color: '#4f46e5' }}>
+              AI 简历筛选系统
+            </Title>
+          </Space>
           <Space>
             <Text>欢迎, {user.username || '用户'}</Text>
             <Button 
@@ -89,14 +110,22 @@ const Dashboard = () => {
       </Header>
 
       <Layout>
-        <Sider 
-          width={200} 
-          style={{ 
+        <Sider
+          width={200}
+          collapsedWidth={80}
+          collapsible
+          collapsed={siderCollapsed}
+          trigger={null}
+          onMouseEnter={() => collapsed && setSiderHovered(true)}
+          onMouseLeave={() => setSiderHovered(false)}
+          style={{
             background: 'white',
-            boxShadow: '2px 0 8px rgba(0, 0, 0, 0.1)'
+            boxShadow: '2px 0 8px rgba(0, 0, 0, 0.1)',
+            overflow: 'auto',
+            transition: 'all 0.2s'
           }}
         >
-          <Sidebar activeItem={activeTab} onItemClick={handleSidebarClick} />
+          <Sidebar activeItem={activeTab} onItemClick={handleSidebarClick} collapsed={siderCollapsed} />
         </Sider>
 
         <Content style={{ 

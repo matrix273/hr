@@ -866,11 +866,11 @@ const Screening = () => {
                   setError('');
                 }}
                 label="筛选岗位"
-                required={!useJobId}
-                placeholder={useJobId ? "请选择岗位（筛选依据）" : "请选择岗位（必选）"}
+                required={true}
+                placeholder="请选择岗位"
                 helpText={
-                  useJobId 
-                    ? "选择要筛选简历的目标岗位" 
+                  useJobId
+                    ? "选择要筛选简历的目标岗位"
                     : "选择岗位将只筛选该岗位的简历"
                 }
               />
