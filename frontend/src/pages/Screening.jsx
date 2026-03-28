@@ -466,6 +466,12 @@ const Screening = () => {
         setHistoryResults(historyResults.filter(r => !selectedHistory.includes(r.result_id)));
         setSelectedHistory([]);
         setSelectAllHistory(false);
+        // 同步清空导出选中状态（复选框共用，删除后导出计数也需清零）
+        const deletedResumeIds = historyResults
+          .filter(r => selectedHistory.includes(r.result_id))
+          .map(r => r.resume_id);
+        setSelectedResults(selectedResults.filter(id => !deletedResumeIds.includes(id)));
+        setSelectAllResults(false);
         setError('');
       } else {
         setError('批量删除失败');
