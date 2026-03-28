@@ -1,12 +1,13 @@
 """简历筛选路由"""
 
+import json
+import asyncio
+import re
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional, List
-import json
-import asyncio
 from datetime import datetime
 from io import BytesIO
 from urllib.parse import quote
@@ -15,10 +16,12 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm, mm
 from reportlab.lib.colors import HexColor
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    HRFlowable, KeepTogether
+)
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.lib.enums import TA_LEFT
 from ..models.schemas import ScreenRequest, BatchDeleteRequest
 from ..models.user import Resume, Job, ScreeningResult, User
 from ..utils.logger import logger
@@ -696,11 +699,21 @@ async def batch_delete_history(
         )
 
 
+# ── 颜色定义 ───────────────────────────────────────────────────────────────
+DARK_BLUE = HexColor("#1A3A5C")
+MID_BLUE = HexColor("#2E6DA4")
+LIGHT_BLUE = HexColor("#E8F1F8")
+GRAY_TEXT = HexColor("#555555")
+LINE_COLOR = HexColor("#2E6DA4")
+
+# ReportLab Paragraph 支持的HTML标签（安全白名单）
+SAFE_TAGS = {'b', 'strong', 'i', 'em', 'u', 'super', 'sub', 'font', 'strike', 'a', 'br'}
+
+
 def _register_chinese_font():
     """注册中文字体，返回字体名称和粗体字体名称"""
     import os
-    
-    # 系统中文字体候选列表 (常规和粗体)
+
     font_pairs = [
         # macOS
         ("/System/Library/Fonts/STHeiti Light.ttc", "/System/Library/Fonts/STHeiti Medium.ttc"),
@@ -714,8 +727,7 @@ def _register_chinese_font():
         ("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc", "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"),
         ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", None),
     ]
-    
-    # 查找可用字体
+
     font_path = None
     bold_font_path = None
     for regular, bold in font_pairs:
@@ -723,11 +735,10 @@ def _register_chinese_font():
             font_path = regular
             bold_font_path = bold if bold and os.path.exists(bold) else None
             break
-    
+
     if font_path is None:
         raise RuntimeError("未找到合适的中文字体，请安装 CJK 字体")
-    
-    # 注册常规字体
+
     font_name = "CN"
     try:
         if font_path.endswith(".ttc"):
@@ -737,293 +748,333 @@ def _register_chinese_font():
     except Exception as e:
         logger.error(f"注册常规字体失败: {e}")
         raise
-    
-    # 注册粗体字体（如果可用）
-    bold_font_name = "CN_Bold"
+
+    # ReportLab Paragraph 遇到 <b>/<strong> 时自动查找 {fontName}-Bold
+    # 必须使用连字符命名才能被自动识别
+    bold_font_name = f"{font_name}-Bold"
     if bold_font_path:
         try:
             if bold_font_path.endswith(".ttc"):
                 pdfmetrics.registerFont(TTFont(bold_font_name, bold_font_path, subfontIndex=0))
             else:
                 pdfmetrics.registerFont(TTFont(bold_font_name, bold_font_path))
+            # 注册字体族，让 ReportLab 知道 CN 和 CN-Bold 的关联
+            pdfmetrics.registerFontFamily(
+                font_name,
+                normal=font_name,
+                bold=bold_font_name
+            )
             logger.info(f"成功注册中文字体: {font_path}, 粗体: {bold_font_path}")
         except Exception as e:
             logger.warning(f"注册粗体字体失败，使用常规字体代替: {e}")
             bold_font_name = font_name
     else:
-        # 如果没有单独的粗体字体，使用常规字体
         bold_font_name = font_name
-        logger.info(f"成功注册中文字体: {font_path} (无单独粗体，使用常规字体)")
-    
+        logger.info(f"成功注册中文字体: {font_path} (无单独粗体)")
+
     return font_name, bold_font_name
-
-
-# ── 颜色定义 ───────────────────────────────────────────────────────────────
-DARK_BLUE = HexColor("#1A3A5C")
-MID_BLUE = HexColor("#2E6DA4")
-LIGHT_BLUE = HexColor("#E8F1F8")
-GRAY_TEXT = HexColor("#555555")
-LINE_COLOR = HexColor("#2E6DA4")
 
 
 def _create_styles(chinese_font: str, bold_font: str = None) -> dict:
     """创建 PDF 样式字典"""
     if bold_font is None:
         bold_font = chinese_font
-    
+
     return {
-        "name": ParagraphStyle("name", fontName=chinese_font, fontSize=26, leading=32, 
+        "name": ParagraphStyle("name", fontName=chinese_font, fontSize=26, leading=32,
                                textColor=DARK_BLUE, spaceAfter=2),
-        "title": ParagraphStyle("title", fontName=chinese_font, fontSize=13, leading=18, 
+        "title": ParagraphStyle("title", fontName=chinese_font, fontSize=13, leading=18,
                                 textColor=MID_BLUE, spaceAfter=4),
-        "contact": ParagraphStyle("contact", fontName=chinese_font, fontSize=9, leading=14, 
+        "contact": ParagraphStyle("contact", fontName=chinese_font, fontSize=9, leading=14,
                                   textColor=GRAY_TEXT),
-        "h1": ParagraphStyle("h1", fontName=chinese_font, fontSize=18, leading=24, 
-                             textColor=DARK_BLUE, spaceAfter=6, spaceBefore=12),
-        "section": ParagraphStyle("section", fontName=chinese_font, fontSize=12, leading=16, 
-                                  textColor="white", backColor=MID_BLUE, leftIndent=6, 
+        "h1": ParagraphStyle("h1", fontName=chinese_font, fontSize=16, leading=22,
+                             textColor=DARK_BLUE, spaceAfter=4, spaceBefore=8),
+        "section": ParagraphStyle("section", fontName=chinese_font, fontSize=12, leading=16,
+                                  textColor="white", backColor=MID_BLUE, leftIndent=6,
                                   spaceAfter=2, spaceBefore=8),
-        "job": ParagraphStyle("job", fontName=chinese_font, fontSize=10, leading=15, 
+        "job": ParagraphStyle("job", fontName=chinese_font, fontSize=10, leading=15,
                              textColor=DARK_BLUE),
-        "body": ParagraphStyle("body", fontName=chinese_font, fontSize=9.5, leading=15, 
-                              textColor=GRAY_TEXT, leftIndent=10),
-        "bullet": ParagraphStyle("bullet", fontName=chinese_font, fontSize=9.5, leading=15, 
-                                textColor=GRAY_TEXT, leftIndent=18, firstLineIndent=-8),
-        "normal": ParagraphStyle("normal", fontName=chinese_font, fontSize=10, leading=16, 
-                                 textColor=GRAY_TEXT),
-        "bold": ParagraphStyle("bold", fontName=bold_font, fontSize=9.5, leading=15, 
+        "body": ParagraphStyle("body", fontName=chinese_font, fontSize=9.5, leading=15,
                               textColor=GRAY_TEXT),
+        "bullet": ParagraphStyle("bullet", fontName=chinese_font, fontSize=9.5, leading=15,
+                                textColor=GRAY_TEXT, leftIndent=18, firstLineIndent=-8),
+        "normal": ParagraphStyle("normal", fontName=chinese_font, fontSize=10, leading=16,
+                                 textColor=GRAY_TEXT),
     }
 
 
 def _section_header(text: str, styles: dict) -> list:
     """创建章节标题"""
-    return [
-        Paragraph(f"  {text}", styles["section"]),
-        Spacer(1, 3),
-    ]
+    return [Paragraph(f"  {text}", styles["section"]), Spacer(1, 3)]
 
 
-def _bullet(text: str, styles: dict) -> Paragraph:
-    """创建项目符号"""
-    return Paragraph(f"• {text}", styles["bullet"])
-
-
-def _parse_markdown_to_story(markdown_text: str, styles: dict, bold_font: str = "CN_Bold") -> list:
-    """将 Markdown 文本转换为 PDF 元素列表
-    
-    Args:
-        markdown_text: Markdown 格式的文本
-        styles: 样式字典
-        bold_font: 粗体字体名称
-        
-    Returns:
-        PDF 元素列表
-    """
-    import re
-    elements = []
-    lines = markdown_text.strip().split('\n')
-    in_list = False
-    in_table = False
-    table_data = []
-    
-    i = 0
-    while i < len(lines):
-        line = lines[i].rstrip()  # 保留缩进，只去掉右边空白
-        
-        # 跳过空行
-        if not line.strip():
-            if in_list:
-                in_list = False
-            if in_table and table_data:
-                # 渲染表格
-                elements.extend(_render_table(table_data, styles))
-                table_data = []
-                in_table = False
-            i += 1
-            continue
-        
-        # 一级标题 (# 标题)
-        if line.startswith('# ') and not line.startswith('## '):
-            title_text = line[2:].strip()
-            title_text = _process_inline_formatting(title_text, bold_font)
-            elements.append(Paragraph(title_text, styles["h1"]))
-            elements.append(Spacer(1, 4))
-        
-        # 二级标题 (## 标题)
-        elif line.startswith('## '):
-            title_text = line[3:].strip()
-            title_text = _process_inline_formatting(title_text, bold_font)
-            elements.extend(_section_header(title_text, styles))
-        
-        # 三级标题 (### **标题** 或 ### 标题)
-        elif line.startswith('### '):
-            title_text = line[4:].strip()
-            # 处理标题中的粗体标记
-            title_text = _process_inline_formatting(title_text, bold_font)
-            elements.append(Paragraph(title_text, styles["job"]))
-            elements.append(Spacer(1, 4))
-        
-        # 列表项处理 (- 或 * 开头)
-        elif line.strip().startswith('- ') or line.strip().startswith('* '):
-            item_text = line.strip()[2:].strip()
-            # 处理列表中的粗体
-            item_text = _process_inline_formatting(item_text, bold_font)
-            elements.append(_bullet(item_text, styles))
-            in_list = True
-        
-        # 表格处理 (| 开头)
-        elif line.startswith('|'):
-            in_table = True
-            # 解析表格行
-            cells = [cell.strip() for cell in line.split('|')[1:-1]]
-            # 跳过表头分隔行 (|---|---| 或 |:---:|---:|----: 等)
-            # 检查是否所有单元格都是分隔符格式 (:---, ---:, :---:, -)
-            is_separator = all(
-                re.match(r'^[:\-]*[:\-]$', cell.strip()) or cell.strip() in ('', '-')
-                for cell in cells
-            )
-            if not is_separator:
-                processed_cells = [_process_inline_formatting(cell, bold_font) for cell in cells]
-                row = [Paragraph(cell, styles["body"]) for cell in processed_cells]
-                table_data.append(row)
-        
-        # 水平分隔线
-        elif line.strip().startswith('---') or line.strip().startswith('***'):
-            elements.append(Spacer(1, 6))
-        
-        # 普通段落
-        else:
-            # 如果之前有表格，先渲染
-            if in_table and table_data:
-                elements.extend(_render_table(table_data, styles))
-                table_data = []
-                in_table = False
-            
-            # 处理行内格式
-            text = _process_inline_formatting(line, bold_font)
-            elements.append(Paragraph(text, styles["body"]))
-            elements.append(Spacer(1, 4))
-        
-        i += 1
-    
-    # 处理最后的表格
-    if in_table and table_data:
-        elements.extend(_render_table(table_data, styles))
-    
-    return elements
-
-
-def _process_inline_formatting(text: str, bold_font: str = "CN_Bold") -> str:
-    """处理行内格式（粗体、斜体等）"""
-    import re
-    
-    # 使用明确的字体名称来渲染粗体和斜体
-    # ReportLab 的 <b> 标签可能不能正确处理中文字体的粗体
-    # 所以我们使用 <font name="CN_Bold"> 来明确指定粗体字体
-    text = re.sub(r'\*\*(.+?)\*\*', rf'<font name="{bold_font}"><b>\1</b></font>', text)
-    text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
-    text = re.sub(r'`(.+?)`', r'<font face="Courier">\1</font>', text)
-    
+def _replace_emoji(text: str) -> str:
+    """将emoji替换为CJK字体支持的Unicode符号或文字"""
+    emoji_map = {
+        "⭐": "★", "✅": "✓", "❌": "✗", "⚠️": "⚠", "✔️": "✓",
+        "💡": "※", "🎯": "◎", "📌": "▪", "✨": "★",
+        "🔥": "▲", "👍": "▲", "👎": "▼", "❓": "?",
+    }
+    for emoji, replacement in emoji_map.items():
+        text = text.replace(emoji, replacement)
     return text
 
 
-def _render_table(table_data: list, styles: dict) -> list:
-    """渲染表格为 PDF 元素"""
+def _extract_and_replace_tables(html: str, styles: dict) -> tuple:
+    """从HTML中提取<table>块并渲染为ReportLab Table，返回(剩余HTML, 占位符→元素映射)
+
+    markdown库使用tables扩展时，会生成标准HTML <table>标签。
+    在sanitize之前先提取这些表格，避免被unwrap破坏结构。
+
+    Args:
+        html: markdown库输出的原始HTML
+        styles: 样式字典
+
+    Returns:
+        (去除了table标签的HTML, {占位符ID: [ReportLab表格元素列表]})
+    """
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "html.parser")
+    table_map = {}  # 占位符ID → ReportLab表格元素
+    placeholder_idx = 0
+
+    for table_tag in soup.find_all("table"):
+        # 解析表格行和单元格
+        table_data = []
+        for tr in table_tag.find_all("tr"):
+            cells = []
+            for cell in tr.find_all(["th", "td"]):
+                # 只保留安全的内联标签文本
+                cell_html = str(cell)
+                cell_html = _replace_emoji(cell_html)
+                # 清理不安全标签，只保留 b/i/u/font/br/super/sub
+                for unsafe in cell.find_all(True):
+                    if unsafe.name not in SAFE_TAGS:
+                        unsafe.unwrap()
+                # 获取内部HTML（保留<strong>/<b>等内联标签），替换换行
+                inner = ''.join(str(child) for child in cell.children)
+                inner = _replace_emoji(inner).strip().replace('\n', '<br/>')
+                cells.append(inner)
+            if cells:
+                table_data.append(cells)
+
+        if len(table_data) < 1:
+            table_tag.decompose()
+            continue
+
+        # 用第一行（表头）的列数作为基准列数
+        # markdown 库会将单元格内的 | 误解析为列分隔符，
+        # 导致数据行列数多于表头，需要将多余的列合并回来
+        header_cols = len(table_data[0])
+        if header_cols > 8:
+            # 列数过多，当作普通文本处理（不提取）
+            continue
+
+        for i in range(1, len(table_data)):
+            row = table_data[i]
+            if len(row) <= header_cols:
+                continue
+            # 超出部分合并到最后一列（用 | 连接还原原始内容）
+            merged = " | ".join(row[header_cols - 1:])
+            table_data[i] = row[:header_cols - 1] + [merged]
+
+        num_cols = header_cols
+
+        # 统一列数
+        for row in table_data:
+            while len(row) < num_cols:
+                row.append("")
+
+        col_width = (A4[0] - 30 * mm) / num_cols
+        rl_rows = []
+        for i, row in enumerate(table_data):
+            cell_style = styles["job"] if i == 0 else styles["body"]
+            rl_rows.append([Paragraph(_replace_emoji(c), cell_style) for c in row])
+
+        rl_table = Table(rl_rows, colWidths=[col_width] * num_cols, splitInRow=True)
+        rl_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), LIGHT_BLUE),
+            ('TEXTCOLOR', (0, 0), (-1, -1), GRAY_TEXT),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('GRID', (0, 0), (-1, -1), 0.3, HexColor("#cccccc")),
+        ]))
+
+        # 用占位符替换原始table标签，并记录映射
+        placeholder_id = f"__TABLE_{placeholder_idx}__"
+        table_map[placeholder_id] = [rl_table, Spacer(1, 6)]
+        placeholder_idx += 1
+        placeholder_tag = soup.new_tag("p")
+        placeholder_tag.string = placeholder_id
+        table_tag.replace_with(placeholder_tag)
+
+    remaining_html = str(soup)
+    return remaining_html, table_map
+
+
+def _sanitize_html_for_reportlab(html: str) -> str:
+    """用 BeautifulSoup 规范化 HTML，再清理为 ReportLab 可渲染格式
+
+    BeautifulSoup 可以自动修复不规范 HTML（未闭合标签、错误嵌套等），
+    解决 ReportLab paraparser 对严格 XML 格式的要求。
+    注意：表格应提前通过 _extract_and_replace_tables 提取，此函数不处理 <table>。
+
+    Args:
+        html: markdown库输出的HTML字符串（不含<table>块）
+
+    Returns:
+        适合ReportLab Paragraph渲染的HTML
+    """
+    from bs4 import BeautifulSoup
+
+    # 替换emoji
+    html = _replace_emoji(html)
+
+    # 用 BeautifulSoup 解析并规范化 HTML（自动修复闭合/嵌套问题）
+    soup = BeautifulSoup(html, "html.parser")
+
+    # 块级标签替换策略
+    # h1/h2/h3 → 粗体 + 换行
+    for tag in soup.find_all(["h1", "h2", "h3"]):
+        b = soup.new_tag("b")
+        b.string = tag.get_text()
+        tag.replace_with(b)
+        br = soup.new_tag("br")
+        b.insert_after(br)
+
+    # p → 保留内容 + 换行
+    for tag in soup.find_all("p"):
+        tag.insert_after(soup.new_tag("br"))
+        tag.unwrap()
+
+    # li → 符号 + 内容 + 换行
+    for tag in soup.find_all("li"):
+        marker = soup.new_string("• ")
+        tag.insert_before(marker)
+        tag.insert_after(soup.new_tag("br"))
+        tag.unwrap()
+
+    # 移除 wrapper 标签（保留内容）
+    for tag_name in ("ul", "ol", "div", "blockquote", "pre", "span"):
+        for tag in soup.find_all(tag_name):
+            tag.unwrap()
+
+    # 移除所有剩余的不安全标签（只保留安全内联标签）
+    for tag in soup.find_all(True):
+        if tag.name not in SAFE_TAGS:
+            tag.unwrap()
+
+    # 移除所有属性（ReportLab不需要）
+    for tag in soup.find_all(True):
+        tag.attrs = {}
+
+    # 获取规范化后的HTML字符串
+    result = str(soup)
+
+    # 修正 <br> 为 <br/>（BeautifulSoup 输出 <br/>）
+    result = re.sub(r'<br\s*/?>', '<br/>', result)
+    # 移除多余连续换行
+    result = re.sub(r'(<br/>\s*){3,}', '<br/><br/>', result)
+    # 去掉尾部多余换行（用正则匹配子串，不能用 rstrip 字符集）
+    result = re.sub(r'(<br/>\s*)+$', '', result).strip()
+
+    return result
+
+
+def _html_to_reportlab_elements(html: str, styles: dict, table_map: dict = None) -> list:
+    """将清理后的HTML拆分为ReportLab元素列表，保持表格与文本的原始顺序
+
+    Args:
+        html: 经过_sanitize_html_for_reportlab清理的HTML（含表格占位符）
+        styles: 样式字典
+        table_map: 占位符ID → ReportLab表格元素列表的映射
+
+    Returns:
+        ReportLab元素列表（表格和文本保持原始顺序）
+    """
+    if table_map is None:
+        table_map = {}
+
     elements = []
-    
-    if not table_data or len(table_data) < 2:
-        return elements
-    
-    # 计算列数
-    num_cols = max(len(row) for row in table_data)
-    col_width = (A4[0] - 30*mm) / num_cols
-    
-    # 确保所有行都有相同的列数
-    for row in table_data:
-        while len(row) < num_cols:
-            row.append(Paragraph("", styles["body"]))
-    
-    # 创建表格
-    table = Table(table_data, colWidths=[col_width] * num_cols)
-    
-    table.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (-1, -1), styles["normal"].fontName),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('BACKGROUND', (0, 0), (-1, 0), LIGHT_BLUE),  # 表头背景
-        ('TEXTCOLOR', (0, 0), (-1, -1), GRAY_TEXT),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # 使用 TOP 对齐以便处理多行文本
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('GRID', (0, 0), (-1, -1), 0.3, HexColor("#cccccc")),
-    ]))
-    
-    elements.append(table)
-    elements.append(Spacer(1, 8))
+    # 用占位符将整个HTML拆分为片段，保持表格与文本的原始顺序
+    if table_map:
+        # 先按占位符分割，再在非占位符片段内按双<br/>分段
+        parts = re.split(r'(__TABLE_\d+__)', html)
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
+            # 表格占位符 → 直接插入表格元素
+            if part in table_map:
+                elements.extend(table_map[part])
+                continue
+            # 普通文本 → 按双换行分段渲染
+            for segment in re.split(r'<br/>\s*<br/>', part):
+                segment = segment.strip()
+                if not segment:
+                    continue
+                # 跳过残留的占位符（防止边缘情况）
+                if segment in table_map:
+                    elements.extend(table_map[segment])
+                    continue
+                elements.append(Paragraph(segment, styles["body"]))
+                elements.append(Spacer(1, 2))
+    else:
+        # 无表格，按双换行分段
+        for segment in re.split(r'<br/>\s*<br/>', html):
+            segment = segment.strip()
+            if not segment:
+                continue
+            elements.append(Paragraph(segment, styles["body"]))
+            elements.append(Spacer(1, 2))
+
     return elements
 
 
 def generate_pdf_report(data: List[dict], title: str = "AI简历筛选报告") -> bytes:
-    """生成PDF报告（支持Markdown渲染）
-    
+    """生成PDF报告（Markdown → HTML → ReportLab，纯Python方案）
+
+    使用markdown库解析Markdown，再将HTML清理为ReportLab可渲染的格式。
+
     Args:
         data: 筛选结果数据列表
         title: 报告标题
-        
+
     Returns:
         PDF文件的字节内容
     """
-    from reportlab.platypus import HRFlowable
-    
-    # 注册中文字体 (返回常规字体和粗体字体)
+    import markdown
+
     chinese_font, bold_font = _register_chinese_font()
-    
-    # 创建样式字典
     styles = _create_styles(chinese_font, bold_font)
-    
-    # 创建字节流
     buffer = BytesIO()
-    
-    # 创建文档
+
     doc = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        rightMargin=15*mm,
-        leftMargin=15*mm,
-        topMargin=15*mm,
-        bottomMargin=15*mm
+        buffer, pagesize=A4,
+        rightMargin=15 * mm, leftMargin=15 * mm,
+        topMargin=15 * mm, bottomMargin=15 * mm
     )
-    
-    # 构建文档内容
+
     story = []
-    
-    # 标题
+
+    # 报告头部
     story.append(Paragraph(title, styles["name"]))
     story.append(Paragraph("AI 简历筛选评估报告", styles["title"]))
-    
-    # 生成时间
     generated_time = datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')
     story.append(Paragraph(f"生成时间：{generated_time}", styles["contact"]))
     story.append(Paragraph(f"简历数量：{len(data)} 份", styles["contact"]))
     story.append(Spacer(1, 10))
-    
-    # 分隔线
     story.append(HRFlowable(width="100%", thickness=1.5, color=LINE_COLOR, spaceAfter=10))
-    story.append(Spacer(1, 10))
-    
-    # 遍历每个结果
+
     for idx, item in enumerate(data, 1):
-        # 格式化相似度
         similarity = item.get('rerank_score', 0) * 100
-        
-        # 文件名和基本信息
         filename = item.get('filename', '未知文件')
-        story.extend(_section_header(f"{idx}. {filename}", styles))
-        
-        # 基本信息
+
         file_size = item.get('file_size', 0)
         if file_size < 1024:
             size_str = f"{file_size} B"
@@ -1031,24 +1082,22 @@ def generate_pdf_report(data: List[dict], title: str = "AI简历筛选报告") -
             size_str = f"{file_size / 1024:.2f} KB"
         else:
             size_str = f"{file_size / (1024 * 1024):.2f} MB"
-        
+
         created_at = item.get('created_at', 0)
         if isinstance(created_at, (int, float)):
             upload_time = datetime.fromtimestamp(created_at).strftime('%Y-%m-%d %H:%M:%S')
         else:
             upload_time = str(created_at) if created_at else "未知"
-        
-        # 基本信息表格
+
+        # 简历区块
+        story.extend(_section_header(f"{idx}. {filename}", styles))
+
         info_data = [
-            [Paragraph("<b>相似度：</b>", styles["body"]), 
-             Paragraph(f"{similarity:.1f}%", styles["body"])],
-            [Paragraph("<b>上传时间：</b>", styles["body"]), 
-             Paragraph(upload_time, styles["body"])],
-            [Paragraph("<b>文件大小：</b>", styles["body"]), 
-             Paragraph(size_str, styles["body"])],
+            [Paragraph("<b>相似度：</b>", styles["body"]), Paragraph(f"{similarity:.1f}%", styles["body"])],
+            [Paragraph("<b>上传时间：</b>", styles["body"]), Paragraph(upload_time, styles["body"])],
+            [Paragraph("<b>文件大小：</b>", styles["body"]), Paragraph(size_str, styles["body"])],
         ]
-        
-        info_table = Table(info_data, colWidths=[30*mm, 80*mm])
+        info_table = Table(info_data, colWidths=[30 * mm, 80 * mm])
         info_table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), chinese_font),
             ('FONTSIZE', (0, 0), (-1, -1), 10),
@@ -1058,33 +1107,35 @@ def generate_pdf_report(data: List[dict], title: str = "AI简历筛选报告") -
         ]))
         story.append(info_table)
         story.append(Spacer(1, 8))
-        
-        # AI评估 - 使用 Markdown 解析
+
+        # AI评估：markdown → HTML → 清理 → ReportLab元素
         if item.get('llm_evaluation'):
             story.extend(_section_header("AI 评估", styles))
-            
             try:
-                # 解析 Markdown 并添加到 story
-                eval_content = item['llm_evaluation']
-                md_story = _parse_markdown_to_story(eval_content, styles, bold_font)
-                story.extend(md_story)
-                
+                md_text = item['llm_evaluation']
+                # 注意：不要在这里清理 <br>！
+                # markdown tables 扩展需要完整的 <br> 在单元格内才能正确解析表格
+                # Markdown → HTML
+                raw_html = markdown.markdown(md_text, extensions=['tables', 'fenced_code', 'nl2br'])
+                # 先提取HTML表格，再清理其余内容
+                remaining_html, table_map = _extract_and_replace_tables(raw_html, styles)
+                clean_html = _sanitize_html_for_reportlab(remaining_html)
+                # 表格和文本保持原始顺序输出
+                eval_elements = _html_to_reportlab_elements(clean_html, styles, table_map)
+                story.extend(eval_elements)
             except Exception as e:
                 logger.warning(f"Markdown解析失败，使用纯文本: {e}")
-                # 降级为纯文本
-                eval_content = item['llm_evaluation'].replace('\n', '<br/>')
-                story.append(Paragraph(eval_content, styles["body"]))
-        
+                fallback = re.sub(r'<[^>]+>', ' ', item['llm_evaluation'])
+                fallback = re.sub(r'\s+', ' ', fallback).strip()
+                story.append(Paragraph(fallback, styles["body"]))
+
         story.append(Spacer(1, 15))
-        
-        # 添加分隔线
         story.append(HRFlowable(width="100%", thickness=0.5, color=LINE_COLOR, spaceAfter=6))
         story.append(Spacer(1, 10))
-    
-    # 构建PDF
+
     doc.build(story)
-    
     return buffer.getvalue()
+
 
 
 @router.post("/export-pdf")
@@ -1172,9 +1223,11 @@ async def export_pdf(
         pdf_bytes = generate_pdf_report(results)
         
         # 返回PDF响应 - 使用RFC 5987编码中文文件名
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"{timestamp}简历筛选报告.pdf"
-        encoded_filename = quote(filename)
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        filename = f"{timestamp}_简历筛选报告.pdf"
+        
+        # 正确编码中文文件名
+        encoded_filename = quote(filename, encoding='utf-8')
         
         return Response(
             content=pdf_bytes,

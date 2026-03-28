@@ -18,7 +18,7 @@ DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTG
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
-    pool_pre_ping=True,
+    pool_pre_ping=False,
     pool_size=10,
     max_overflow=20
 )

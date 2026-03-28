@@ -28,6 +28,7 @@ class UserCreate(BaseModel):
     full_name: str
     role: str = "user"
     is_active: bool = True
+    company_id: Optional[str] = None
 
 
 class UserRegister(BaseModel):
@@ -37,6 +38,7 @@ class UserRegister(BaseModel):
     password: str
     full_name: str
     role: str = "user"
+    company_id: Optional[str] = None
 
 
 class ContactForm(BaseModel):
@@ -63,6 +65,7 @@ class UserResponse(BaseModel):
     full_name: Optional[str] = None
     role: str
     is_active: bool
+    company_id: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -79,25 +82,39 @@ async def list_users(
             detail=f"缺少所需权限: {Permission.USER_READ.value}"
         )
 
-    # 根据用户角色过滤可见用户
     user_role = Role(current_user.get("role", Role.USER))
-    query = select(User).order_by(User.created_at.desc())
-    
-    # HR角色不能看到管理员账号
-    if user_role == Role.HR:
-        query = query.where(User.role != Role.ADMIN)
-    # 经理角色不能看到管理员账号
-    elif user_role == Role.MANAGER:
-        query = query.where(User.role != Role.ADMIN)
-    # 招聘专员和面试官只能看到普通用户
-    elif user_role in [Role.RECRUITER, Role.INTERVIEWER]:
-        query = query.where(User.role == Role.USER)
-    # 普通用户不能查看用户列表
-    elif user_role == Role.USER:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="普通用户无权查看用户列表"
+
+    # 管理员可以看到所有用户
+    if user_role == Role.ADMIN:
+        query = select(User).order_by(User.created_at.desc())
+    else:
+        # 非管理员只能看到同公司的用户
+        me_result = await db.execute(
+            select(User).where(User.username == current_user["username"])
         )
+        me = me_result.scalar_one_or_none()
+        if not me or not me.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="当前用户未关联公司，无法查看用户列表"
+            )
+
+        query = select(User).where(
+            User.company_id == me.company_id
+        ).order_by(User.created_at.desc())
+
+        # HR和经理不能看到管理员账号
+        if user_role in [Role.HR, Role.MANAGER]:
+            query = query.where(User.role != Role.ADMIN)
+        # 招聘专员和面试官只能看到普通用户
+        elif user_role in [Role.RECRUITER, Role.INTERVIEWER]:
+            query = query.where(User.role == Role.USER)
+        # 普通用户不能查看用户列表
+        elif user_role == Role.USER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="普通用户无权查看用户列表"
+            )
 
     result = await db.execute(query)
     users = result.scalars().all()
@@ -111,6 +128,7 @@ async def list_users(
             full_name=user.full_name,
             role=user.role,
             is_active=user.is_active,
+            company_id=user.company_id,
             created_at=user.created_at.isoformat() if user.created_at else None,
             updated_at=user.updated_at.isoformat() if user.updated_at else None
         ))
@@ -167,6 +185,18 @@ async def create_user(
             detail="无权创建管理员角色"
         )
 
+    # 确定新用户的 company_id
+    if current_user_role == Role.ADMIN and user_data.company_id:
+        # 管理员可以为用户指定公司
+        target_company_id = user_data.company_id
+    else:
+        # 非管理员创建的用户继承创建者的 company_id
+        me_result = await db.execute(
+            select(User).where(User.username == current_user["username"])
+        )
+        me = me_result.scalar_one_or_none()
+        target_company_id = me.company_id if me else None
+
     # 创建新用户
     import uuid
     user_id = f"user_{str(uuid.uuid4())[:8]}"
@@ -177,7 +207,8 @@ async def create_user(
         password_hash=get_password_hash(user_data.password),
         full_name=user_data.full_name,
         role=user_data.role,
-        is_active=user_data.is_active
+        is_active=user_data.is_active,
+        company_id=target_company_id
     )
     db.add(new_user)
     await db.commit()
@@ -192,6 +223,7 @@ async def create_user(
         full_name=new_user.full_name,
         role=new_user.role,
         is_active=new_user.is_active,
+        company_id=new_user.company_id,
         created_at=new_user.created_at.isoformat() if new_user.created_at else None,
         updated_at=new_user.updated_at.isoformat() if new_user.updated_at else None
     )
@@ -219,6 +251,19 @@ async def get_user(
             detail="用户不存在"
         )
 
+    # 非管理员只能查看同公司用户
+    current_user_role = Role(current_user.get("role", Role.USER))
+    if current_user_role != Role.ADMIN:
+        me_result = await db.execute(
+            select(User).where(User.username == current_user["username"])
+        )
+        me = me_result.scalar_one_or_none()
+        if not me or me.company_id != user.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="无权查看其他公司的用户信息"
+            )
+
     return UserResponse(
         id=user.id,
         username=user.username,
@@ -226,6 +271,7 @@ async def get_user(
         full_name=user.full_name,
         role=user.role,
         is_active=user.is_active,
+        company_id=user.company_id,
         created_at=user.created_at.isoformat() if user.created_at else None,
         updated_at=user.updated_at.isoformat() if user.updated_at else None
     )
@@ -255,10 +301,22 @@ async def update_user(
             detail="用户不存在"
         )
 
-    # 权限检查：HR和经理不能修改管理员账号
+    # 权限检查：非管理员只能修改同公司用户
     current_user_role = Role(current_user.get("role", Role.USER))
+    if current_user_role != Role.ADMIN:
+        me_result = await db.execute(
+            select(User).where(User.username == current_user["username"])
+        )
+        me = me_result.scalar_one_or_none()
+        if not me or me.company_id != user.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="无权修改其他公司的用户信息"
+            )
+
+    # 权限检查：HR和经理不能修改管理员账号
     target_user_role = Role(user.role)
-    
+
     if target_user_role == Role.ADMIN and current_user_role != Role.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -318,6 +376,7 @@ async def update_user(
         full_name=user.full_name,
         role=user.role,
         is_active=user.is_active,
+        company_id=user.company_id,
         created_at=user.created_at.isoformat() if user.created_at else None,
         updated_at=user.updated_at.isoformat() if user.updated_at else None
     )
@@ -353,8 +412,20 @@ async def delete_user(
             detail="不能删除自己的账户"
         )
 
-    # 权限检查：HR和经理不能删除管理员账号
+    # 权限检查：非管理员只能删除同公司用户
     current_user_role = Role(current_user.get("role", Role.USER))
+    if current_user_role != Role.ADMIN:
+        me_result = await db.execute(
+            select(User).where(User.username == current_user["username"])
+        )
+        me = me_result.scalar_one_or_none()
+        if not me or me.company_id != user.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="无权删除其他公司的用户"
+            )
+
+    # 权限检查：HR和经理不能删除管理员账号
     target_user_role = Role(user.role)
     
     if target_user_role == Role.ADMIN and current_user_role != Role.ADMIN:
@@ -424,7 +495,8 @@ async def register(
         password_hash=get_password_hash(user_data.password),
         full_name=user_data.full_name,
         role=user_data.role,
-        is_active=True
+        is_active=True,
+        company_id=user_data.company_id
     )
     db.add(new_user)
     await db.commit()
@@ -439,6 +511,7 @@ async def register(
         full_name=new_user.full_name,
         role=new_user.role,
         is_active=new_user.is_active,
+        company_id=new_user.company_id,
         created_at=new_user.created_at.isoformat() if new_user.created_at else None,
         updated_at=new_user.updated_at.isoformat() if new_user.updated_at else None
     )

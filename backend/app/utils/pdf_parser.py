@@ -3,7 +3,8 @@
 import io
 import pdfplumber
 from pypdf import PdfReader
-from typing import Optional
+from typing import Optional, List
+from .text_chunker import intelligent_chunking
 from ..utils.logger import logger
 
 

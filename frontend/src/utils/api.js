@@ -39,6 +39,11 @@ api.interceptors.response.use(
   },
   (error) => {
     if (error.response?.status === 401) {
+      // 登录接口的 401 不跳转，让组件自行处理错误提示
+      const requestUrl = error.config?.url || '';
+      if (requestUrl.includes('/auth/login')) {
+        return Promise.reject(error);
+      }
       // Token 过期或无效，清除本地存储并跳转到登录页
       localStorage.removeItem('token');
       window.location.href = '/login';

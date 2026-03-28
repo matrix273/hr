@@ -28,9 +28,6 @@ export const Permission = {
   USER_UPDATE: "user:update",
   USER_DELETE: "user:delete",
   
-  // 报表统计
-  REPORT_READ: "report:read",
-  
   // 系统管理
   SYSTEM_CONFIG: "system:config",
   SYSTEM_ADMIN: "system:admin"
@@ -144,8 +141,8 @@ export const getPermissionHint = (permission) => {
 export const getRolePermissionsDescription = () => {
   return {
     admin: "拥有所有权限，可管理系统所有功能",
-    manager: "可管理岗位和筛选，可查看和更新用户信息，可查看报表",
-    hr: "可管理简历、岗位和筛选，可查看和更新用户信息，可查看报表",
+    manager: "可管理岗位和筛选，可查看和更新用户信息",
+    hr: "可管理简历、岗位和筛选，可查看和更新用户信息",
     recruiter: "可上传简历和执行筛选",
     interviewer: "仅可查看简历和岗位信息",
     user: "仅可浏览简历和岗位"

@@ -6,7 +6,7 @@ import {
   FileSearchOutlined,
   SearchOutlined,
   TeamOutlined,
-  BarChartOutlined,
+
   CreditCardOutlined
 } from '@ant-design/icons';
 
@@ -43,11 +43,6 @@ const Sidebar = ({ activeItem, onItemClick }) => {
       key: 'payment',
       icon: <CreditCardOutlined />,
       label: '会员订阅'
-    },
-    {
-      key: 'analysis',
-      icon: <BarChartOutlined />,
-      label: '数据分析'
     },
   ];
 

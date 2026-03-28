@@ -24,16 +24,42 @@ class ResumeScreeningSystem:
             logger.info("向量数据库连接正常")
 
     def add_resume(self, resume_id: str, resume_text: str) -> bool:
-        """Add a resume to the system"""
+        """Add a resume to the system with intelligent chunking"""
         try:
-            # Generate embedding
-            logger.info(f"开始生成 embedding: resume_id={resume_id}")
-            embedding = self.embedding.embed_single(resume_text)
-
-            # Insert into vector database
-            logger.info(f"开始插入向量数据库: resume_id={resume_id}, embedding维度={len(embedding)}")
-            self.vector_db.insert(resume_id, resume_text, embedding)
-            logger.info(f"简历添加成功: resume_id={resume_id}")
+            from ..utils.text_chunker import intelligent_chunking
+            
+            # 智能切分简历文本
+            chunks = intelligent_chunking(resume_text)
+            logger.info(f"简历切分完成: resume_id={resume_id}, 切分为 {len(chunks)} 个块")
+            
+            # 为每个块生成embedding
+            all_embeddings = []
+            for i, chunk in enumerate(chunks):
+                logger.info(f"生成第 {i+1}/{len(chunks)} 个块的 embedding")
+                embedding = self.embedding.embed_single(chunk)
+                all_embeddings.append({
+                    "chunk_index": i,
+                    "text": chunk,
+                    "embedding": embedding
+                })
+            
+            # 插入到向量数据库（支持多向量）
+            logger.info(f"开始插入向量数据库: resume_id={resume_id}, 向量数={len(all_embeddings)}")
+            
+            # 使用主embedding（第一个块）作为主要向量
+            main_embedding = all_embeddings[0]["embedding"]
+            
+            # 存储所有块信息到向量数据库
+            success = self.vector_db.insert_with_chunks(resume_id, resume_text, main_embedding, all_embeddings)
+            
+            if success:
+                logger.info(f"简历添加成功: resume_id={resume_id}, 向量数={len(all_embeddings)}")
+            else:
+                # 如果多向量插入失败，回退到单向量插入
+                logger.warning(f"多向量插入失败，回退到单向量插入: {resume_id}")
+                self.vector_db.insert(resume_id, resume_text, main_embedding)
+                logger.info(f"简历单向量添加成功: {resume_id}")
+                
             return True
         except Exception as e:
             logger.error(f"添加简历失败: resume_id={resume_id}, 错误: {e}")

@@ -63,6 +63,7 @@ const JobManagement = () => {
       }
 
       if (response.data.success) {
+        message.success(editingJob ? '岗位更新成功' : '岗位创建成功');
         handleCloseForm();
         fetchJobs();
       } else {

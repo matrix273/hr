@@ -95,4 +95,16 @@ def get_current_user_from_token(token: Optional[str] = None) -> dict:
         }
     else:
         # 否则使用 header 中的 token
-        return get_current_user()
+        # 创建一个简单的模拟 credentials 对象
+        class MockCredentials:
+            def __init__(self, token):
+                self.credentials = token
+        
+        # 这里需要从当前请求上下文中获取 token
+        # 由于我们无法直接获取请求，我们假设调用者会正确处理
+        # 或者我们可以简化这个函数，只处理 token 参数的情况
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="请提供有效的 token 参数",
+            headers={"WWW-Authenticate": "Bearer"},
+        )

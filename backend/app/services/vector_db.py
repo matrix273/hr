@@ -72,6 +72,49 @@ class MilvusVectorDB:
             logger.error(f"插入向量失败: resume_id={resume_id}, 错误: {e}")
             raise
     
+    def insert_with_chunks(self, resume_id: str, resume_text: str, main_embedding: List[float], 
+                          chunks: List[Dict[str, Any]]) -> bool:
+        """Insert a resume with multiple chunks into the collection
+        
+        Args:
+            resume_id: 简历ID
+            resume_text: 完整简历文本
+            main_embedding: 主embedding向量（第一个块）
+            chunks: 所有文本块信息
+            
+        Returns:
+            是否插入成功
+        """
+        if not self.connected:
+            logger.warning(f"Milvus 不可用，跳过插入: resume_id={resume_id}")
+            return False
+        
+        try:
+            # 存储主向量（保持向后兼容）
+            main_entities = [
+                [resume_id],  # resume_id
+                [resume_text],  # resume_text
+                [main_embedding]  # embedding
+            ]
+            
+            self.collection.insert(main_entities)
+            
+            # 存储每个块的向量（使用不同的resume_id标识）
+            for i, chunk_info in enumerate(chunks):
+                chunk_id = f"{resume_id}_chunk_{i}"
+                chunk_entities = [
+                    [chunk_id],  # resume_id
+                    [chunk_info["text"]],  # resume_text
+                    [chunk_info["embedding"]]  # embedding
+                ]
+                self.collection.insert(chunk_entities)
+            
+            logger.info(f"成功插入多向量到 Milvus: resume_id={resume_id}, 块数={len(chunks)}")
+            return True
+        except Exception as e:
+            logger.error(f"插入多向量失败: resume_id={resume_id}, 错误: {e}")
+            return False
+    
     async def search(self, query_embedding: List[float], top_k: int = 5, 
                 time_range: Optional[int] = 7, only_unscreened: Optional[bool] = False,
                 filter_job_id: Optional[str] = None) -> List[Dict[str, Any]]:

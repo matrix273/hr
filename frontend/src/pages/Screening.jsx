@@ -311,9 +311,16 @@ const Screening = () => {
       const contentDisposition = response.headers['content-disposition'];
       let filename = '简历筛选报告.pdf';
       if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
-        if (filenameMatch && filenameMatch[1]) {
-          filename = decodeURIComponent(filenameMatch[1]);
+        // 优先解析RFC 5987格式: filename*=UTF-8''encoded_filename
+        const rfc5987Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/);
+        if (rfc5987Match && rfc5987Match[1]) {
+          filename = decodeURIComponent(rfc5987Match[1]);
+        } else {
+          // 回退到传统格式: filename="filename"
+          const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+          if (filenameMatch && filenameMatch[1]) {
+            filename = decodeURIComponent(filenameMatch[1]);
+          }
         }
       }
       

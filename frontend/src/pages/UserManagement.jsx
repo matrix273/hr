@@ -25,7 +25,8 @@ import {
   Divider,
   Tooltip,
   Row,
-  Col
+  Col,
+  message
 } from 'antd';
 import {
   PlusOutlined,
@@ -135,6 +136,7 @@ const UserManagement = () => {
       if (modalMode === 'create') {
         const response = await api.post('/users', values);
         setUsers([response.data, ...users]);
+        message.success('用户创建成功');
       } else {
         const updateData = { ...values };
         if (!updateData.password) {
@@ -142,6 +144,7 @@ const UserManagement = () => {
         }
         const response = await api.put(`/users/${currentUser.id}`, updateData);
         setUsers(users.map(u => u.id === currentUser.id ? response.data : u));
+        message.success('用户更新成功');
       }
       setShowModal(false);
     } catch (err) {

@@ -34,12 +34,26 @@ class QwenReranker:
 
         start_time = time.time()
 
-        payload = {
-            "model": self.model,
-            "query": query,
-            "documents": documents,
-            "top_k": top_k
-        }
+        # 判断是否为阿里通义千问 API（基于 URL 包含 dashscope）
+        is_dashscope = "dashscope" in self.url.lower()
+        
+        if is_dashscope:
+            # 阿里通义千问 API 格式
+            payload = {
+                "model": self.model,
+                "query": query,
+                "documents": documents,
+                "top_n": top_k,
+                "instruct": "Given a query, retrieve relevant passages that answer the query."
+            }
+        else:
+            # Cohere 或其他兼容 OpenAI 格式的 API
+            payload = {
+                "model": self.model,
+                "query": query,
+                "documents": documents,
+                "top_k": top_k
+            }
 
         headers = {}
         if self.api_key and self.api_key != "not_required":
@@ -72,16 +86,87 @@ class QwenReranker:
             result = response.json()
             reranked_results = []
 
-            for item in result["results"]:
-                raw_score = item["rerank_score"]
-                # 对分数进行 sigmoid 归一化到 0-1 范围
-                normalized_score = self.sigmoid_normalize(raw_score)
-                reranked_results.append({
-                    "index": item["index"],
-                    "score": normalized_score,
-                    "raw_score": raw_score,  # 保留原始分数供调试
-                    "document": documents[item["index"]]
-                })
+            # 处理不同 API 的响应格式
+            if is_dashscope:
+                # 阿里通义千问格式 - 根据您提供的成功响应结构处理
+                
+                # 优先处理错误响应
+                if "code" in result and result["code"] != "200":
+                    error_msg = result.get("message", "Unknown error")
+                    logger.error(f"阿里通义千问 API 错误: {result['code']} - {error_msg}")
+                    raise Exception(f"阿里通义千问 API 错误: {result['code']} - {error_msg}")
+                
+                # 处理成功响应
+                if "output" in result and "results" in result["output"]:
+                    # 您提供的成功响应格式: output -> results
+                    for item in result["output"]["results"]:
+                        raw_score = item.get("relevance_score", 0.0)
+                        # 阿里通义千问的分数已经是 0-1 范围，无需 sigmoid 归一化
+                        normalized_score = raw_score
+                        document_text = ""
+                        
+                        # 提取文档文本
+                        if "document" in item and "text" in item["document"]:
+                            document_text = item["document"]["text"]
+                        elif "text" in item:
+                            document_text = item["text"]
+                        else:
+                            # 使用索引获取原始文档
+                            index = item.get("index", 0)
+                            document_text = documents[index] if index < len(documents) else ""
+                        
+                        reranked_results.append({
+                            "index": item.get("index", 0),
+                            "score": normalized_score,
+                            "raw_score": raw_score,  # 保留原始分数供调试
+                            "document": document_text
+                        })
+                elif "data" in result:
+                    # 格式1: 包含 data 字段
+                    for i, item in enumerate(result["data"]):
+                        raw_score = item.get("relevance_score", item.get("score", 0.0))
+                        normalized_score = raw_score
+                        reranked_results.append({
+                            "index": i,
+                            "score": normalized_score,
+                            "raw_score": raw_score,
+                            "document": item.get("document", item.get("text", documents[i] if i < len(documents) else ""))
+                        })
+                elif "results" in result:
+                    # 格式2: 包含 results 字段
+                    for i, item in enumerate(result["results"]):
+                        raw_score = item.get("relevance_score", item.get("score", 0.0))
+                        normalized_score = raw_score
+                        reranked_results.append({
+                            "index": i,
+                            "score": normalized_score,
+                            "raw_score": raw_score,
+                            "document": item.get("document", item.get("text", documents[i] if i < len(documents) else ""))
+                        })
+                else:
+                    # 格式3: 直接是数组
+                    for i, item in enumerate(result):
+                        raw_score = item.get("relevance_score", item.get("score", 0.0))
+                        normalized_score = raw_score
+                        reranked_results.append({
+                            "index": i,
+                            "score": normalized_score,
+                            "raw_score": raw_score,
+                            "document": item.get("document", item.get("text", documents[i] if i < len(documents) else ""))
+                        })
+                    
+            else:
+                # Cohere/OpenAI 兼容格式
+                for item in result["results"]:
+                    raw_score = item["rerank_score"]
+                    # 对分数进行 sigmoid 归一化到 0-1 范围
+                    normalized_score = self.sigmoid_normalize(raw_score)
+                    reranked_results.append({
+                        "index": item["index"],
+                        "score": normalized_score,
+                        "raw_score": raw_score,  # 保留原始分数供调试
+                        "document": documents[item["index"]]
+                    })
 
             total_time = time.time() - start_time
             logger.info(f"Rerank 完成, 耗时={total_time:.2f} 秒")

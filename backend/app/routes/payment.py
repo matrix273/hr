@@ -1,5 +1,6 @@
 """支付路由 - 个人开发者简化版"""
 
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -14,19 +15,29 @@ from ..services.payment import SimplePaymentService
 router = APIRouter(prefix="/api/payment", tags=["payment"])
 
 
+async def _check_subscription_expiry(user: User, db: AsyncSession):
+    """检查订阅是否到期，到期自动降级为免费版"""
+    if (user.subscription_plan != "free"
+            and user.subscription_expires
+            and user.subscription_expires <= datetime.now(timezone.utc)):
+        user.subscription_plan = "free"
+        user.subscription_expires = None
+        await db.commit()
+
+
 async def get_current_user_object(
     user_dict: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> User:
-    """获取当前用户的数据库对象"""
+    """获取当前用户的数据库对象（复用同一个 db session）"""
     result = await db.execute(select(User).where(User.username == user_dict["username"]))
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="用户不存在"
-        )
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    # 检查订阅到期，自动降级
+    await _check_subscription_expiry(user, db)
 
     return user
 
@@ -55,7 +66,7 @@ async def create_payment_qrcode(
     current_user: User = Depends(get_current_user_object),
     db: AsyncSession = Depends(get_db)
 ):
-    """创建支付二维码（简化版）"""
+    """创建支付订单"""
     # 获取套餐信息
     result = await db.execute(select(SubscriptionPlan).where(SubscriptionPlan.id == plan_id))
     plan = result.scalar_one_or_none()
@@ -63,6 +74,28 @@ async def create_payment_qrcode(
     if not plan:
         raise HTTPException(status_code=404, detail="套餐不存在")
     
+    # 免费套餐直接创建订单并确认
+    if plan.price == 0 or payment_method == "free":
+        order = PaymentOrder(
+            user_id=current_user.id,
+            amount=0,
+            payment_method="free",
+            product_type="subscription",
+            product_id=plan_id,
+            product_name=plan.name,
+            status="paid"
+        )
+        db.add(order)
+        current_user.subscription_plan = plan_id
+        current_user.subscription_expires = None
+        await db.commit()
+        await db.refresh(order)
+        return {
+            "order_id": order.order_id,
+            "plan": plan.to_dict(),
+            "status": "paid"
+        }
+
     # 创建支付订单
     order = PaymentOrder(
         user_id=current_user.id,
@@ -114,24 +147,59 @@ async def verify_payment(
     if order.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权访问此订单")
     
-    # 验证支付状态
-    payment_service = SimplePaymentService()
-    payment_result = payment_service.verify_payment(order_id)
-    
-    if payment_result.get("paid"):
-        # 更新订单状态
-        order.status = "paid"
-        
-        # 更新用户订阅信息
-        current_user.subscription_plan = order.product_id
-        current_user.balance += order.amount
-        
-        await db.commit()
-    
+    # 根据数据库中订单的实际状态返回
+    is_paid = order.status == "paid"
+
     return {
         "order": order.to_dict(),
-        "payment_status": payment_result
+        "payment_status": {
+            "success": True,
+            "paid": is_paid,
+            "order_id": order_id,
+            "status": order.status
+        }
     }
+
+
+@router.post("/confirm/{order_id}")
+async def confirm_payment(
+    order_id: str,
+    current_user: User = Depends(get_current_user_object),
+    db: AsyncSession = Depends(get_db)
+):
+    """手动确认支付（测试用，实际应由支付平台回调）"""
+    result = await db.execute(select(PaymentOrder).where(PaymentOrder.order_id == order_id))
+    order = result.scalar_one_or_none()
+
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+
+    if order.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权访问此订单")
+
+    if order.status == "paid":
+        return {"order": order.to_dict(), "message": "订单已支付"}
+
+    order.status = "paid"
+    order.paid_at = datetime.now(timezone.utc)
+
+    current_user.subscription_plan = order.product_id
+    current_user.balance += order.amount
+
+    # 根据套餐有效期设置到期时间
+    plan_result = await db.execute(
+        select(SubscriptionPlan).where(SubscriptionPlan.id == order.product_id)
+    )
+    plan = plan_result.scalar_one_or_none()
+    if plan and plan.duration_days > 0:
+        current_user.subscription_expires = datetime.now(timezone.utc) + timedelta(days=plan.duration_days)
+    else:
+        current_user.subscription_expires = None
+
+    await db.commit()
+    await db.refresh(order)
+
+    return {"order": order.to_dict(), "message": "支付确认成功"}
 
 
 @router.get("/orders", response_model=List[dict])

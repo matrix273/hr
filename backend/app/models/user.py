@@ -1,9 +1,28 @@
 """用户模型"""
 
 import uuid
+import random
+import string
 from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, Float
 from sqlalchemy.sql import func
 from ..database import Base
+
+
+class Company(Base):
+    """公司模型"""
+    __tablename__ = "companies"
+
+    id = Column(String(50), primary_key=True)
+    name = Column(String(100), nullable=False, comment="公司名称")
+    invite_code = Column(String(10), unique=True, nullable=False, index=True, comment="邀请码")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    @staticmethod
+    def generate_invite_code(length: int = 6) -> str:
+        """生成邀请码，排除易混淆字符 O/0/I/1/L"""
+        chars = string.ascii_uppercase + string.digits
+        chars = chars.replace("O", "").replace("0", "").replace("I", "").replace("1", "").replace("L", "")
+        return "".join(random.choices(chars, k=length))
 
 
 class User(Base):
@@ -17,6 +36,7 @@ class User(Base):
     full_name = Column(String(100))
     role = Column(String(20), nullable=False, default="user")
     is_active = Column(Boolean, default=True)
+    company_id = Column(String(50), nullable=True, index=True, comment="所属公司ID，用于数据隔离")
     # 支付相关字段
     balance = Column(Float, default=0.0, comment="账户余额")
     subscription_plan = Column(String(50), default="free", comment="订阅套餐")
@@ -33,6 +53,7 @@ class User(Base):
             "full_name": self.full_name,
             "role": self.role,
             "is_active": self.is_active,
+            "company_id": self.company_id,
             "balance": self.balance,
             "subscription_plan": self.subscription_plan,
             "subscription_expires": self.subscription_expires.isoformat() if self.subscription_expires else None,

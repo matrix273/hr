@@ -386,7 +386,7 @@ async def list_resumes(
 @router.get("/{resume_id}/file")
 async def get_resume_file(
     resume_id: str,
-    current_user: dict = Depends(get_current_user_from_token)
+    current_user: dict = Depends(get_current_active_user)
 ):
     """获取简历 PDF 文件
 

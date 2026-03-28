@@ -54,6 +54,7 @@ class UserCreate(BaseModel):
     password: str = Field(..., min_length=6, max_length=100, description="密码")
     full_name: Optional[str] = Field(None, max_length=100, description="全名")
     role: Role = Field(Role.USER, description="角色")
+    company_id: Optional[str] = Field(None, description="公司编码")
 
 
 class UserLogin(BaseModel):
@@ -78,6 +79,7 @@ class UserResponse(BaseModel):
     role: str
     permissions: List[str]
     is_active: bool
+    company_id: Optional[str] = None
 
 
 # ===== 简历上传相关模型 =====

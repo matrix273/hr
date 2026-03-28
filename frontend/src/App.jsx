@@ -6,6 +6,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import HelpPage from './pages/HelpPage';
 import Payment from './pages/Payment';
+import ForgotPassword from './pages/ForgotPassword';
 
 function App() {
   const token = localStorage.getItem('token');
@@ -21,6 +22,9 @@ function App() {
       
       {/* 注册页面 */}
       <Route path="/register" element={<Register />} />
+      
+      {/* 忘记密码页面 */}
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       
       {/* 帮助页面 */}
       <Route path="/help" element={<HelpPage />} />

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, Button, Badge, Space, Spin, Empty, Typography, Tag } from 'antd';
-import { CheckCircleOutlined, LoadingOutlined, QrcodeOutlined, ClockCircleOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, LoadingOutlined, QrcodeOutlined, ClockCircleOutlined, AppstoreOutlined, FileTextOutlined, PlusCircleOutlined } from '@ant-design/icons';
 import { getApiBaseUrl } from '../utils/api';
 
 const { Title, Text } = Typography;
@@ -72,6 +72,20 @@ const PaymentPage = () => {
             setOrders(data);
         } catch (error) {
             console.error('获取订单失败:', error);
+        }
+    };
+
+    // 激活免费套餐（静默激活，不显示支付流程）
+    const activateFreePlan = async (plan) => {
+        if (userInfo?.subscription_plan === plan.id) return;
+        try {
+            await fetch(`${API_BASE}/payment/create-qrcode?plan_id=${plan.id}&payment_method=free`, {
+                method: 'POST',
+                headers
+            });
+            await fetchUserInfo();
+        } catch (error) {
+            console.error('激活免费套餐失败:', error);
         }
     };
 
@@ -176,6 +190,18 @@ const PaymentPage = () => {
         setSelectedMethod(null);
     };
 
+    // 套餐名称映射
+    const planNameMap = {
+        free: '免费版', basic: '基础版',
+        professional: '专业版', enterprise: '企业版'
+    };
+
+    // 当前套餐详情
+    const currentPlanDetail = useMemo(() => {
+        if (!userInfo?.subscription_plan || !plans.length) return null;
+        return plans.find(p => p.id === userInfo.subscription_plan);
+    }, [userInfo, plans]);
+
     const getStatusBadge = (status) => {
         const statusMap = {
             'pending': { text: '待支付', color: 'gold' },
@@ -194,34 +220,38 @@ const PaymentPage = () => {
             </Title>
 
             <Card style={{ marginBottom: '24px' }}>
-                <Title level={4} style={{ marginBottom: '16px' }}>
-                    我的账户
-                </Title>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
-                    <div>
-                        <Text type="secondary">账户余额</Text>
-                        <div style={{ fontSize: '28px', fontWeight: 'bold', marginTop: '8px' }}>
-                            ¥{userInfo?.balance?.toFixed(2) || '0.00'}
-                        </div>
-                    </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                         <Text type="secondary">当前套餐</Text>
-                        <div style={{ fontSize: '28px', fontWeight: 'bold', marginTop: '8px' }}>
-                            {userInfo?.subscription_plan === 'free' ? '免费版' :
-                             userInfo?.subscription_plan === 'basic' ? '基础版' :
-                             userInfo?.subscription_plan === 'professional' ? '专业版' :
-                             userInfo?.subscription_plan === 'enterprise' ? '企业版' :
-                             '未知'}
+                        <div style={{ fontSize: '24px', fontWeight: 'bold', marginTop: '4px', marginBottom: '12px' }}>
+                            {planNameMap[userInfo?.subscription_plan] || '未知'}
+                        </div>
+                        {currentPlanDetail && (
+                            <div style={{ display: 'flex', gap: '24px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <FileTextOutlined style={{ color: '#4f46e5' }} />
+                                    <Text type="secondary">
+                                        筛选简历 <Text strong>{currentPlanDetail.max_resumes}</Text> 份/月
+                                    </Text>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <PlusCircleOutlined style={{ color: '#4f46e5' }} />
+                                    <Text type="secondary">
+                                        新增岗位 <Text strong>{currentPlanDetail.max_jobs}</Text> 个/月
+                                    </Text>
+                                </div>
+                            </div>
+                        )}
+                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#999' }}>
+                            筛选简历：AI 每次筛选的 Top K 份简历数量按月累计
                         </div>
                     </div>
-                    <div>
-                        <Text type="secondary">AI筛选功能</Text>
-                        <div style={{ fontSize: '28px', fontWeight: 'bold', marginTop: '8px' }}>
-                            {userInfo?.can_use_ai_screening ? (
-                                <span style={{ color: '#52c41a' }}>已启用</span>
-                            ) : (
-                                <span style={{ color: '#ff4d4f' }}>未启用</span>
-                            )}
+                    <div style={{ textAlign: 'right' }}>
+                        <Text type="secondary">订阅到期</Text>
+                        <div style={{ fontSize: '14px', marginTop: '4px' }}>
+                            {userInfo?.subscription_expires
+                                ? new Date(userInfo.subscription_expires).toLocaleDateString()
+                                : '永久有效'}
                         </div>
                     </div>
                 </div>
@@ -256,7 +286,17 @@ const PaymentPage = () => {
                                     border: selectedPlan?.id === plan.id ? '2px solid #1890ff' : '1px solid #f0f0f0',
                                     transition: 'all 0.3s'
                                 }}
-                                onClick={() => setSelectedPlan(plan)}
+                                onClick={() => {
+                                    setSelectedPlan(plan);
+                                    if (plan.price === 0) {
+                                        activateFreePlan(plan);
+                                    } else {
+                                        // 自动滚动到支付方式区域
+                                        setTimeout(() => {
+                                            document.getElementById('payment-section')?.scrollIntoView({ behavior: 'smooth' });
+                                        }, 100);
+                                    }
+                                }}
                             >
                                 <Title level={4} style={{ marginBottom: '8px' }}>
                                     {plan.name}
@@ -271,18 +311,12 @@ const PaymentPage = () => {
                                 <div style={{ listStyle: 'none', padding: 0 }}>
                                     <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
                                         <CheckCircleOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
-                                        {plan.max_resumes} 份简历
+                                        <span>{plan.max_resumes} 份筛选简历/月</span>
                                     </div>
                                     <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
                                         <CheckCircleOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
-                                        {plan.max_jobs} 个岗位
+                                        <span>{plan.max_jobs} 个新增岗位/月</span>
                                     </div>
-                                    {plan.ai_screening && (
-                                        <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
-                                            <CheckCircleOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
-                                            AI 筛选功能
-                                        </div>
-                                    )}
                                     {plan.priority_support && (
                                         <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
                                             <CheckCircleOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
@@ -294,8 +328,8 @@ const PaymentPage = () => {
                         ))}
                     </div>
 
-                    {selectedPlan && (
-                        <Card style={{ marginBottom: '24px' }}>
+                    {selectedPlan && selectedPlan.price > 0 && (
+                        <Card id="payment-section" style={{ marginBottom: '24px' }}>
                             <Title level={4} style={{ marginBottom: '16px' }}>
                                 选择支付方式
                             </Title>

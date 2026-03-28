@@ -128,21 +128,6 @@ const Dashboard = () => {
             <Payment />
           )}
 
-          {activeTab === 'analysis' && (
-            <div style={{ 
-              background: 'white', 
-              borderRadius: '12px', 
-              padding: '64px', 
-              textAlign: 'center',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
-            }}>
-              <div style={{ fontSize: '96px', marginBottom: '24px' }}>📊</div>
-              <Title level={3} style={{ color: '#262626', marginBottom: '12px' }}>
-                数据分析
-              </Title>
-              <Text style={{ color: '#666', fontSize: '16px' }}>功能开发中...</Text>
-            </div>
-          )}
         </Content>
       </Layout>
     </Layout>

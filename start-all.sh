@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# 启动所有服务：FastAPI, Celery, Reranker, Embedding
+# 启动所有服务：FastAPI, Celery（云端版本，无需启动本地AI服务）
 
 echo "=================================="
-echo "🚀 启动 AI 简历筛选系统"
+echo "🚀 启动 AI 简历筛选系统（云端版本）"
 echo "=================================="
 
 # 清理函数
@@ -23,17 +23,7 @@ cleanup() {
         echo "✅ Celery服务已停止"
     fi
 
-    # 停止Reranker服务
-    if [ -n "$RERANKER_PID" ]; then
-        kill $RERANKER_PID 2>/dev/null
-        echo "✅ Reranker服务已停止"
-    fi
-
-    # 停止Embedding服务
-    if [ -n "$EMBEDDING_PID" ]; then
-        kill $EMBEDDING_PID 2>/dev/null
-        echo "✅ Embedding服务已停止"
-    fi
+# 云端版本，无需停止本地AI服务
 
     echo "✅ 所有服务已停止"
     exit 0
@@ -67,42 +57,20 @@ mkdir -p logs
 
 echo ""
 echo "=================================="
-echo "📡 启动服务顺序："
+echo "📡 启动服务顺序（云端版本）："
 echo "=================================="
-echo "1. Embedding服务"
-echo "2. Reranker服务"
-echo "3. Celery Worker"
-echo "4. FastAPI Backend"
+echo "1. Celery Worker"
+echo "2. FastAPI Backend"
+echo "=================================="
+echo ""
+echo "💡 云端AI服务："
+echo "   - Embedding: 阿里通义千问"
+echo "   - Reranker:  阿里通义千问"
+echo "   - LLM:       阿里通义千问"
 echo "=================================="
 echo ""
 
-# 1. 启动Embedding服务
-echo "🔤 启动Embedding服务..."
-if [ "$USE_UV" = true ]; then
-    uv run python backend/start-embedding.py --host 0.0.0.0 --port 8010 > logs/embedding.log 2>&1 &
-else
-    python backend/start-embedding.py --host 0.0.0.0 --port 8010 > logs/embedding.log 2>&1 &
-fi
-EMBEDDING_PID=$!
-echo "✅ Embedding服务已启动 (PID: $EMBEDDING_PID)"
-
-# 等待Embedding服务启动
-sleep 5
-
-# 2. 启动Reranker服务
-echo "🔄 启动Reranker服务..."
-if [ "$USE_UV" = true ]; then
-    uv run python backend/start-reranker.py --host 0.0.0.0 --port 8001 > logs/reranker.log 2>&1 &
-else
-    python backend/start-reranker.py --host 0.0.0.0 --port 8001 > logs/reranker.log 2>&1 &
-fi
-RERANKER_PID=$!
-echo "✅ Reranker服务已启动 (PID: $RERANKER_PID)"
-
-# 等待Reranker服务启动
-sleep 5
-
-# 3. 启动Celery Worker
+# 1. 启动Celery Worker
 echo "📋 启动Celery Worker..."
 cd backend
 if [ "$USE_UV" = true ]; then
@@ -117,7 +85,7 @@ cd ..
 # 等待Celery启动
 sleep 3
 
-# 4. 启动FastAPI Backend
+# 2. 启动FastAPI Backend
 echo "⚡ 启动FastAPI Backend..."
 cd backend
 if [ "$USE_UV" = true ]; then
@@ -134,25 +102,27 @@ sleep 5
 
 echo ""
 echo "=================================="
-echo "✅ 所有服务启动完成！"
+echo "✅ 所有服务启动完成！（云端版本）"
 echo "=================================="
 echo ""
 echo "📊 服务状态："
 echo "   FastAPI:     http://localhost:8000"
 echo "   API文档:     http://localhost:8000/docs"
-echo "   Embedding:   http://localhost:8010"
-echo "   Reranker:    http://localhost:8001"
 echo "   Celery:      运行中 (日志: logs/celery.log)"
+echo ""
+echo "☁️  云端AI服务："
+echo "   - Embedding: 阿里通义千问（云端）"
+echo "   - Reranker:  阿里通义千问（云端）"
+echo "   - LLM:       阿里通义千问（云端）"
 echo ""
 echo "📝 日志文件："
 echo "   FastAPI:     logs/fastapi.log"
-echo "   Embedding:   logs/embedding.log"
-echo "   Reranker:    logs/reranker.log"
 echo "   Celery:      logs/celery.log"
 echo ""
 echo "💡 提示："
 echo "   - 按 Ctrl+C 停止所有服务"
 echo "   - 使用 'tail -f logs/{service}.log' 查看服务日志"
+echo "   - AI服务已切换到云端，无需本地模型部署"
 echo "=================================="
 echo ""
 

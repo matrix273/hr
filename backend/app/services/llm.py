@@ -121,21 +121,35 @@ class LLMClient:
         anonymized_resume = self._anonymize_resume(resume_text)
         relevant_content = self._extract_relevant_sections(anonymized_resume, job_description)
 
-        prompt = f"""请评估以下简历是否符合职位描述，并提供详细分析：
+        prompt = f"""请评估以下简历是否符合职位描述，并提供详细分析。
 
-职位描述：
+## 职位描述
 {job_description}
 
-简历（已脱敏处理）：
+## 简历（已脱敏处理）
 {relevant_content}
 
-评估内容应包括：
-1. 整体匹配度评分（0-100）
-2. 技能匹配分析
-3. 经验匹配分析
-4. 教育背景匹配分析
-5. 优势与劣势
-6. 建议
+## 输出要求
+请严格使用 **Markdown 格式** 输出，结构如下：
+
+### 整体匹配度评分（0-100）
+
+### 技能匹配分析
+
+### 经验匹配分析
+
+### 教育背景匹配分析
+
+### 优势与劣势
+
+### 建议
+
+**格式规范（必须遵守）：**
+- 使用 Markdown 语法（标题用 ###，加粗用 **text**，列表用 - 或 1.）
+- 如需使用表格，使用标准 Markdown 表格语法（| 列1 | 列2 |）
+- 不要使用 HTML 标签（如 <br>、<strong>、<p> 等）
+- 不要使用 emoji 表情符号（如 ✅❌⭐ 等）
+- 不要使用特殊字符装饰
 
 注意：简历中的个人身份信息已进行脱敏处理，请基于专业技能和经验进行评估。
 """

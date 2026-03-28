@@ -44,6 +44,12 @@ dependencies = [
     "reportlab>=4.0.0",
     "psycopg2-binary>=2.9.11",
     "qrcode>=8.2",
+    "aiosmtplib>=5.1.0",
+    # Text Processing
+    "fuzzywuzzy>=0.18.0",
+    "python-levenshtein>=0.27.3",
+    "markdown>=3.10.2",
+    "beautifulsoup4>=4.14.3",
 ]
 
 [dependency-groups]
