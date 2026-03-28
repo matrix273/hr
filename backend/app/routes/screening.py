@@ -149,9 +149,25 @@ async def screen_resumes(
                     request.model
                 )
                 
-                # 等待任务完成（设置超时时间）
+                # 等待任务完成（带心跳保活，防止连接超时断开）
                 try:
-                    llm_result = llm_task.get(timeout=120)  # 120秒超时，给Qwen足够时间
+                    llm_result = None
+                    heartbeat_interval = 15  # 每15秒发送一次心跳
+                    elapsed = 0
+                    step = 1
+                    while elapsed < 120:
+                        if llm_task.ready():
+                            llm_result = llm_task.get(timeout=1)
+                            break
+                        # 短暂等待后检查结果
+                        try:
+                            llm_result = llm_task.get(timeout=step)
+                            break
+                        except Exception:
+                            pass
+                        elapsed += step
+                        if elapsed % heartbeat_interval == 0:
+                            yield f": heartbeat\n\n"
                     
                     if llm_result["success"]:
                         evaluation_result = llm_result["evaluation_result"]
@@ -538,9 +554,25 @@ async def screen_resumes_by_job(
                     model
                 )
                 
-                # 等待任务完成（设置超时时间）
+                # 等待任务完成（带心跳保活，防止连接超时断开）
                 try:
-                    llm_result = llm_task.get(timeout=120)  # 120秒超时，给Qwen足够时间
+                    llm_result = None
+                    heartbeat_interval = 15  # 每15秒发送一次心跳
+                    elapsed = 0
+                    step = 1
+                    while elapsed < 120:
+                        if llm_task.ready():
+                            llm_result = llm_task.get(timeout=1)
+                            break
+                        # 短暂等待后检查结果
+                        try:
+                            llm_result = llm_task.get(timeout=step)
+                            break
+                        except Exception:
+                            pass
+                        elapsed += step
+                        if elapsed % heartbeat_interval == 0:
+                            yield f": heartbeat\n\n"
                     
                     if llm_result["success"]:
                         evaluation_result = llm_result["evaluation_result"]
