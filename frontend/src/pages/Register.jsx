@@ -110,8 +110,8 @@ const Register = () => {
           }
         });
       } else {
-        message.success('注册成功！请登录');
-        navigate('/login');
+        message.success('注册成功！即将跳转到登录页...');
+        setTimeout(() => navigate('/login'), 800);
       }
     } catch (err) {
       message.error(err.response?.data?.detail || '注册失败，请稍后重试');
