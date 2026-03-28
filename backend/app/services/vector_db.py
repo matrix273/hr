@@ -115,40 +115,51 @@ class MilvusVectorDB:
             logger.error(f"插入多向量失败: resume_id={resume_id}, 错误: {e}")
             return False
     
-    async def search(self, query_embedding: List[float], top_k: int = 5, 
+    # oversampling 倍数：Milvus 取 top_k * OVERSAMPLE_FACTOR 条，
+    # 过滤后再截取 top_k，保证 top_k=1 和 top_k=5 的候选集一致
+    OVERSAMPLE_FACTOR = 5
+    MIN_SEARCH_LIMIT = 30
+
+    async def search(self, query_embedding: List[float], top_k: int = 5,
                 time_range: Optional[int] = 7, only_unscreened: Optional[bool] = False,
                 filter_job_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Search for similar resumes with optional filters
-        
+
+        使用 oversampling 策略：从 Milvus 取远大于 top_k 的候选集，
+        应用层过滤后再截取 top_k 条，确保排序一致性。
+
         Args:
             query_embedding: Query embedding vector
             top_k: Number of top results to return
             time_range: Time range in days (0 for all time)
             only_unscreened: Only return unscreened resumes
             filter_job_id: Filter by job ID
-            
+
         Returns:
             List of search results
         """
         if not self.connected:
             logger.warning("Milvus 不可用，返回空搜索结果")
             return []
-        
+
         try:
             search_params = {
                 "metric_type": "L2",
                 "params": {"nprobe": 10}
             }
-            
+
+            # oversampling：取远大于 top_k 的候选集，保证过滤后仍有足够结果
+            search_limit = max(top_k * self.OVERSAMPLE_FACTOR, self.MIN_SEARCH_LIMIT)
+
             # 执行向量搜索
             results = self.collection.search(
                 [query_embedding],
                 "embedding",
                 search_params,
-                limit=top_k,
+                limit=search_limit,
                 output_fields=["resume_id", "resume_text"]
             )
-            
+
             # Format results
             formatted_results = []
             for hits in results:
@@ -158,11 +169,14 @@ class MilvusVectorDB:
                         "resume_text": hit.entity.get("resume_text"),
                         "distance": hit.distance
                     })
-            
+
             # 应用层筛选（时间范围和是否已筛选）
             if time_range or only_unscreened or filter_job_id:
                 formatted_results = await self._apply_filters(formatted_results, time_range, only_unscreened, filter_job_id)
-            
+
+            # 过滤后截取 top_k 条返回
+            formatted_results = formatted_results[:top_k]
+
             return formatted_results
         except Exception as e:
             logger.error(f"向量搜索失败: {e}")
