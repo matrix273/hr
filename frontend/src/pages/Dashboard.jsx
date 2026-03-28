@@ -7,6 +7,7 @@ import ResumeList from '../components/ResumeList';
 import JobManagement from './JobManagement';
 import Screening from './Screening';
 import UserManagement from './UserManagement';
+import CompanyManagement from './CompanyManagement';
 import Payment from './Payment';
 import Sidebar from '../components/Sidebar';
 
@@ -151,6 +152,10 @@ const Dashboard = () => {
 
           {activeTab === 'users' && (
             <UserManagement />
+          )}
+
+          {activeTab === 'companies' && (
+            <CompanyManagement />
           )}
 
           {activeTab === 'payment' && (

@@ -7,12 +7,65 @@ from sqlalchemy import select
 from typing import List
 
 from ..auth.jwt import get_current_user
-from ..database import get_db
+from ..database import AsyncSessionLocal, get_db
 from ..models.user import User
 from ..models.payment import PaymentOrder, SubscriptionPlan
 from ..services.payment import SimplePaymentService
+from ..services.subscription import get_user_plan, get_user_usage
+from ..utils.logger import logger
 
 router = APIRouter(prefix="/api/payment", tags=["payment"])
+
+# 默认套餐定义
+DEFAULT_PLANS = [
+    {
+        "id": "free",
+        "name": "免费版",
+        "description": "适合个人体验，基础功能免费使用",
+        "price": 0,
+        "duration_days": 36500,
+        "max_resumes": 10,
+        "max_jobs": 3,
+        "ai_screening": True,
+        "priority_support": False,
+    },
+    {
+        "id": "basic",
+        "name": "基础版",
+        "description": "适合小型团队，满足日常招聘需求",
+        "price": 99,
+        "duration_days": 30,
+        "max_resumes": 100,
+        "max_jobs": 10,
+        "ai_screening": True,
+        "priority_support": False,
+    },
+    {
+        "id": "pro",
+        "name": "专业版",
+        "description": "适合中型企业，高效批量处理简历",
+        "price": 299,
+        "duration_days": 30,
+        "max_resumes": 500,
+        "max_jobs": 50,
+        "ai_screening": True,
+        "priority_support": True,
+    },
+]
+
+
+async def init_default_plans():
+    """初始化默认套餐数据（数据库为空时自动填充）"""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(SubscriptionPlan))
+        existing = result.scalars().all()
+
+        if not existing:
+            for plan_data in DEFAULT_PLANS:
+                plan = SubscriptionPlan(**plan_data)
+                db.add(plan)
+            await db.commit()
+            logger.info(f"已初始化 {len(DEFAULT_PLANS)} 个默认套餐")
 
 
 async def _check_subscription_expiry(user: User, db: AsyncSession):
@@ -63,16 +116,23 @@ async def get_payment_methods():
 async def create_payment_qrcode(
     plan_id: str,
     payment_method: str,
+    quantity: int = 1,
     current_user: User = Depends(get_current_user_object),
     db: AsyncSession = Depends(get_db)
 ):
     """创建支付订单"""
+    # 校验购买数量
+    if quantity < 1 or quantity > 12:
+        raise HTTPException(status_code=400, detail="购买数量需在 1-12 之间")
+
     # 获取套餐信息
     result = await db.execute(select(SubscriptionPlan).where(SubscriptionPlan.id == plan_id))
     plan = result.scalar_one_or_none()
     
     if not plan:
         raise HTTPException(status_code=404, detail="套餐不存在")
+    
+    total_amount = plan.price * quantity
     
     # 免费套餐直接创建订单并确认
     if plan.price == 0 or payment_method == "free":
@@ -99,11 +159,11 @@ async def create_payment_qrcode(
     # 创建支付订单
     order = PaymentOrder(
         user_id=current_user.id,
-        amount=plan.price,
+        amount=total_amount,
         payment_method=payment_method,
         product_type="subscription",
         product_id=plan_id,
-        product_name=plan.name
+        product_name=f"{plan.name} x{quantity}个月"
     )
     
     db.add(order)
@@ -114,8 +174,8 @@ async def create_payment_qrcode(
     payment_service = SimplePaymentService()
     result = payment_service.create_payment_qrcode(
         order_id=order.order_id,
-        amount=plan.price,
-        description=f"购买套餐: {plan.name}",
+        amount=total_amount,
+        description=f"购买套餐: {plan.name} x{quantity}个月",
         payment_method=payment_method
     )
     
@@ -219,12 +279,17 @@ async def get_user_orders(
 
 @router.get("/user-info")
 async def get_user_payment_info(
-    current_user: User = Depends(get_current_user_object)
+    current_user: User = Depends(get_current_user_object),
+    db: AsyncSession = Depends(get_db)
 ):
     """获取用户支付信息"""
+    plan = await get_user_plan(current_user, db)
+    usage = await get_user_usage(current_user.id, db)
     return {
         "balance": current_user.balance,
         "subscription_plan": current_user.subscription_plan,
         "subscription_expires": current_user.subscription_expires,
-        "can_use_ai_screening": current_user.subscription_plan != "free"
+        "can_use_ai_screening": current_user.subscription_plan != "free",
+        "plan": plan,
+        "usage": usage,
     }

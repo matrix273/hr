@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../utils/api';
 import {
   Form,
@@ -12,7 +12,7 @@ import {
   Select,
   Modal
 } from 'antd';
-import { ArrowLeftOutlined, MailOutlined, CopyOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, MailOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -26,9 +26,17 @@ const Register = () => {
   const [countdown, setCountdown] = useState(0);
   const [codeLoading, setCodeLoading] = useState(false);
   const [sentTo, setSentTo] = useState('');
-  const [selectedRole, setSelectedRole] = useState('');
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const timerRef = useRef(null);
+
+  // 从 URL 读取邀请码并自动填充
+  useEffect(() => {
+    const inviteCode = searchParams.get('invite_code');
+    if (inviteCode) {
+      form.setFieldsValue({ invite_code: inviteCode.toUpperCase() });
+    }
+  }, [searchParams, form]);
 
   const availableRoles = [
     { value: 'user', label: '普通用户' },
@@ -66,53 +74,11 @@ const Register = () => {
     setLoading(true);
     try {
       const data = { ...values };
-      // HR 传 company_name，其他角色传 invite_code
-      if (data.role !== 'hr') {
-        delete data.company_name;
-      } else {
-        delete data.invite_code;
-      }
       delete data.confirmPassword;
 
-      const response = await api.post('/auth/register', data);
-      const result = response.data;
-
-      // HR 注册成功，弹窗显示邀请码
-      if (result.invite_code) {
-        Modal.success({
-          title: '注册成功',
-          width: 420,
-          centered: true,
-          content: (
-            <div>
-              <p>您的公司邀请码为：</p>
-              <div style={{
-                fontSize: 32,
-                fontWeight: 'bold',
-                textAlign: 'center',
-                letterSpacing: 8,
-                color: '#4f46e5',
-                padding: '12px 0',
-                fontFamily: 'monospace'
-              }}>
-                {result.invite_code}
-              </div>
-              <p style={{ color: '#999', fontSize: 13 }}>
-                请将此邀请码分享给同事，同事注册时输入即可加入同一公司
-              </p>
-            </div>
-          ),
-          okText: '复制邀请码并登录',
-          onOk: () => {
-            navigator.clipboard?.writeText(result.invite_code);
-            message.success('邀请码已复制');
-            navigate('/login');
-          }
-        });
-      } else {
-        message.success('注册成功！即将跳转到登录页...');
-        setTimeout(() => navigate('/login'), 800);
-      }
+      await api.post('/auth/register', data);
+      message.success('注册成功！即将跳转到登录页...');
+      setTimeout(() => navigate('/login'), 800);
     } catch (err) {
       message.error(err.response?.data?.detail || '注册失败，请稍后重试');
     } finally {
@@ -139,12 +105,6 @@ const Register = () => {
     } catch (error) {
       // 表单验证失败
     }
-  };
-
-  const handleRoleChange = (role) => {
-    setSelectedRole(role);
-    // 切换角色时清空邀请码和公司名
-    form.setFieldsValue({ invite_code: '', company_name: '' });
   };
 
   const formItemStyle = { marginBottom: 16 };
@@ -291,7 +251,7 @@ const Register = () => {
             </Form.Item>
           </div>
 
-          {/* 角色 & 公司/邀请码 */}
+          {/* 角色 & 邀请码 */}
           <div style={{ display: 'flex', gap: 12 }}>
             <Form.Item
               name="role"
@@ -299,7 +259,7 @@ const Register = () => {
               rules={[{ required: true, message: '请选择角色' }]}
               style={{ flex: 1, marginBottom: formItemStyle.marginBottom }}
             >
-              <Select placeholder="选择角色" onChange={handleRoleChange}>
+              <Select placeholder="选择角色">
                 {availableRoles.map((role) => (
                   <Option key={role.value} value={role.value}>
                     {role.label}
@@ -307,35 +267,15 @@ const Register = () => {
                 ))}
               </Select>
             </Form.Item>
-
-            {selectedRole === 'hr' ? (
-              <Form.Item
-                name="company_name"
-                label="公司名称"
-                rules={[{ required: true, message: '请输入公司名称' }]}
-                style={{ flex: 1, marginBottom: formItemStyle.marginBottom }}
-                tooltip="注册后将自动生成邀请码，可分享给同事"
-              >
-                <Input placeholder="请输入公司名称" />
-              </Form.Item>
-            ) : selectedRole ? (
-              <Form.Item
-                name="invite_code"
-                label="公司邀请码"
-                rules={[{ required: true, message: '请输入邀请码' }]}
-                style={{ flex: 1, marginBottom: formItemStyle.marginBottom }}
-                tooltip="向HR同事索取邀请码"
-              >
-                <Input placeholder="请输入邀请码" style={{ textTransform: 'uppercase' }} />
-              </Form.Item>
-            ) : (
-              <Form.Item
-                label="公司"
-                style={{ flex: 1, marginBottom: formItemStyle.marginBottom }}
-              >
-                <Input placeholder="请先选择角色" disabled />
-              </Form.Item>
-            )}
+            <Form.Item
+              name="invite_code"
+              label="公司邀请码"
+              rules={[{ required: true, message: '请输入邀请码' }]}
+              style={{ flex: 1, marginBottom: formItemStyle.marginBottom }}
+              tooltip="向管理员或HR同事索取邀请码"
+            >
+              <Input placeholder="请输入邀请码" style={{ textTransform: 'uppercase' }} />
+            </Form.Item>
           </div>
 
           <Form.Item style={{ marginBottom: 0 }}>

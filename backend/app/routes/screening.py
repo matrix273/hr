@@ -30,6 +30,7 @@ from ..database import get_db
 from ..core.system import ResumeScreeningSystem
 from ..auth.rbac import check_permission
 from ..tasks import evaluate_resume_with_llm
+from ..services.subscription import check_screening_quota
 
 router = APIRouter(prefix="/api/screening", tags=["Screening"])
 
@@ -61,14 +62,20 @@ async def screen_resumes(
 
     async def event_stream():
         try:
-            # 获取用户ID
+            # 获取用户对象
             user_result = await db.execute(
-                select(User.id).where(User.username == current_user['username'])
+                select(User).where(User.username == current_user['username'])
             )
-            user_id = user_result.scalar_one_or_none()
+            user = user_result.scalar_one_or_none()
 
-            if not user_id:
+            if not user:
                 yield f"data: {json.dumps({'error': '用户不存在'})}\n\n"
+                return
+
+            # 检查筛选配额（基于成功筛选数，非 top_k）
+            allowed, error_msg = await check_screening_quota(user, db)
+            if not allowed:
+                yield f"data: {json.dumps({'type': 'error', 'message': error_msg})}\n\n"
                 return
 
             logger.info(f"开始简历筛选, 用户: {current_user['username']}, top_k: {request.top_k}, model: {request.model}")
@@ -176,7 +183,7 @@ async def screen_resumes(
                         logger.info(f"简历 {resume_info['resume_id']} LLM 评估完成, 匹配度: {matching_score}%")
                         
                         # 只有LLM评估成功的简历才保存结果并返回
-                        custom_job_id = f"custom_{user_id}_{int(asyncio.get_event_loop().time())}"
+                        custom_job_id = f"custom_{user.id}_{int(asyncio.get_event_loop().time())}"
                         screening_result = ScreeningResult(
                             job_id=custom_job_id,
                             resume_id=resume_id,
@@ -187,7 +194,7 @@ async def screen_resumes(
                             rank=len(successful_results) + 1,  # 重新排序
                             llm_evaluation=llm_content,
                             matching_score=matching_score,
-                            user_id=user_id
+                            user_id=user.id
                         )
                         db.add(screening_result)
                         
@@ -462,14 +469,20 @@ async def screen_resumes_by_job(
                 yield f"data: {json.dumps({'error': '岗位不存在'})}\n\n"
                 return
 
-            # 获取用户ID
+            # 获取用户对象
             user_result = await db.execute(
-                select(User.id).where(User.username == current_user['username'])
+                select(User).where(User.username == current_user['username'])
             )
-            user_id = user_result.scalar_one_or_none()
+            user = user_result.scalar_one_or_none()
 
-            if not user_id:
+            if not user:
                 yield f"data: {json.dumps({'error': '用户不存在'})}\n\n"
+                return
+
+            # 检查筛选配额（基于成功筛选数，非 top_k）
+            allowed, error_msg = await check_screening_quota(user, db)
+            if not allowed:
+                yield f"data: {json.dumps({'type': 'error', 'message': error_msg})}\n\n"
                 return
 
             logger.info(f"开始根据岗位筛选简历, 岗位: {job.title}, 用户: {current_user['username']}, top_k: {top_k}, model: {model}")
@@ -602,7 +615,7 @@ async def screen_resumes_by_job(
                     rank=idx + 1,
                     llm_evaluation=llm_content,
                     matching_score=matching_score,
-                    user_id=user_id
+                    user_id=user.id
                 )
                 db.add(screening_result)
                 

@@ -40,6 +40,13 @@ async def lifespan(app: FastAPI):
         logger.error(f"创建默认管理员失败: {e}")
         # 继续启动，不阻止应用
 
+    # 初始化默认套餐
+    try:
+        from .routes.payment import init_default_plans
+        await init_default_plans()
+    except Exception as e:
+        logger.error(f"初始化默认套餐失败: {e}")
+
     # Startup
     system = ResumeScreeningSystem()
     logger.info("Resume Screening System initialized")
@@ -95,6 +102,8 @@ from .routes.users import router as users_router
 app.include_router(users_router)
 from .routes.payment import router as payment_router
 app.include_router(payment_router)
+from .routes.companies import router as companies_router
+app.include_router(companies_router)
 
 
 @app.get("/", tags=["Root"])

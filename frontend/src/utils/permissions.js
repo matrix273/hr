@@ -30,7 +30,13 @@ export const Permission = {
   
   // 系统管理
   SYSTEM_CONFIG: "system:config",
-  SYSTEM_ADMIN: "system:admin"
+  SYSTEM_ADMIN: "system:admin",
+  
+  // 公司管理
+  COMPANY_READ: "company:read",
+  COMPANY_CREATE: "company:create",
+  COMPANY_UPDATE: "company:update",
+  COMPANY_DELETE: "company:delete"
 };
 
 /**

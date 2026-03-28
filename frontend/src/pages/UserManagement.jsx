@@ -34,7 +34,8 @@ import {
   DeleteOutlined,
   UserOutlined,
   MailOutlined,
-  LockOutlined
+  LockOutlined,
+  BankOutlined
 } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
@@ -47,6 +48,8 @@ const UserManagement = () => {
   const [modalMode, setModalMode] = useState('create'); // 'create' or 'edit'
   const [currentUser, setCurrentUser] = useState(null);
   const [form] = Form.useForm();
+  const [companies, setCompanies] = useState([]);
+  const isAdmin = getCurrentUser()?.role === 'admin';
 
   const roles = [
     { value: 'admin', label: '管理员' },
@@ -59,6 +62,7 @@ const UserManagement = () => {
 
   useEffect(() => {
     fetchUsers();
+    if (isAdmin) fetchCompanies();
   }, []);
 
   const fetchUsers = async () => {
@@ -70,6 +74,16 @@ const UserManagement = () => {
       setError(err.response?.data?.detail || '获取用户列表失败');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCompanies = async () => {
+    try {
+      const response = await api.get('/companies');
+      setCompanies(response.data);
+    } catch (err) {
+      // 非关键功能，不阻断页面
+      console.error('获取公司列表失败', err);
     }
   };
 
@@ -102,7 +116,8 @@ const UserManagement = () => {
       full_name: user.full_name || '',
       role: user.role,
       is_active: user.is_active,
-      password: ''
+      password: '',
+      company_id: user.company_id || undefined
     });
     setCurrentUser(user);
     setShowModal(true);
@@ -141,6 +156,10 @@ const UserManagement = () => {
         const updateData = { ...values };
         if (!updateData.password) {
           delete updateData.password;
+        }
+        // 明确传 null 以解除公司关联（undefined 会被 JSON 序列化忽略）
+        if (updateData.company_id === undefined) {
+          updateData.company_id = null;
         }
         const response = await api.put(`/users/${currentUser.id}`, updateData);
         setUsers(users.map(u => u.id === currentUser.id ? response.data : u));
@@ -194,6 +213,19 @@ const UserManagement = () => {
         </Tag>
       ),
     },
+    ...(isAdmin ? [{
+      title: '所属公司',
+      dataIndex: 'company_id',
+      key: 'company_id',
+      width: 120,
+      render: (companyId) => {
+        if (!companyId) return <Tag>未关联</Tag>;
+        const company = companies.find(c => c.id === companyId);
+        return company ? (
+          <Tag color="purple" icon={<BankOutlined />}>{company.name}</Tag>
+        ) : <Tag>{companyId}</Tag>;
+      },
+    }] : []),
     {
       title: '状态',
       dataIndex: 'is_active',
@@ -412,6 +444,29 @@ const UserManagement = () => {
               </Form.Item>
             </Col>
           </Row>
+
+          {isAdmin && (
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  label="所属公司"
+                  name="company_id"
+                  help="更改后该用户将关联到新公司，清空则解除关联"
+                >
+                  <Select
+                    allowClear
+                    placeholder="选择公司（可留空）"
+                    showSearch
+                    optionFilterProp="children"
+                    options={companies.map(c => ({
+                      value: c.id,
+                      label: `${c.name}（${c.invite_code}）`
+                    }))}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+          )}
           
           {/* 角色说明 */}
           <Card size="small" title="角色权限说明" style={{ marginBottom: 16 }}>

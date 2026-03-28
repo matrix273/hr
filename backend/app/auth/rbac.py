@@ -48,6 +48,12 @@ class Permission(str, Enum):
     SYSTEM_CONFIG = "system:config"
     SYSTEM_ADMIN = "system:admin"
 
+    # 公司管理
+    COMPANY_READ = "company:read"
+    COMPANY_CREATE = "company:create"
+    COMPANY_UPDATE = "company:update"
+    COMPANY_DELETE = "company:delete"
+
 
 # 角色权限映射
 ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
@@ -76,6 +82,11 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         # 系统管理 - 完整权限
         Permission.SYSTEM_CONFIG,
         Permission.SYSTEM_ADMIN,
+        # 公司管理 - 完整权限
+        Permission.COMPANY_READ,
+        Permission.COMPANY_CREATE,
+        Permission.COMPANY_UPDATE,
+        Permission.COMPANY_DELETE,
     },
     Role.MANAGER: {
         # 简历管理 - 可读取、创建、更新，删除需审批
@@ -156,8 +167,12 @@ def check_permission(permission: Permission, current_user: dict = Depends(get_cu
 
 def require_permission(permission: Permission):
     """要求指定权限的依赖项"""
-    def _require_permission(current_user: dict) -> dict:
-        if not check_permission(permission, current_user):
+    def _require_permission(
+        current_user: dict = Depends(get_current_user)
+    ) -> dict:
+        user_role = Role(current_user.get("role", Role.USER))
+        user_permissions = get_role_permissions(user_role)
+        if permission not in user_permissions:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"缺少所需权限: {permission.value}",

@@ -30,9 +30,7 @@ class UserCreate(BaseModel):
     full_name: str
     role: str = "user"
     verification_code: str = Field(..., description="邮箱验证码")
-    # HR注册时传 company_name 创建公司；其他角色传 invite_code 加入公司
-    company_name: Optional[str] = Field(None, description="公司名称（HR注册时填写）")
-    invite_code: Optional[str] = Field(None, description="邀请码（加入已有公司时填写）")
+    invite_code: Optional[str] = Field(None, description="公司邀请码（可选）")
 
 
 class SendCodeRequest(BaseModel):
@@ -284,43 +282,9 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
             detail="不允许注册此角色"
         )
 
-    # 确定公司
+    # 通过邀请码加入公司（可选）
     company_id = None
-    invite_code = None
-
-    if user.role == "hr":
-        # HR 注册：创建新公司
-        if not user.company_name:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="HR角色注册需要填写公司名称"
-            )
-        company_id = f"company_{user.company_name}"
-        # 生成唯一邀请码
-        invite_code = Company.generate_invite_code()
-        for _ in range(10):
-            existing = await db.execute(
-                select(Company).where(Company.invite_code == invite_code)
-            )
-            if not existing.scalar_one_or_none():
-                break
-            invite_code = Company.generate_invite_code()
-
-        # 创建公司记录
-        new_company = Company(
-            id=company_id,
-            name=user.company_name,
-            invite_code=invite_code
-        )
-        db.add(new_company)
-        logger.info(f"创建新公司: {user.company_name}, 邀请码: {invite_code}")
-    else:
-        # 非 HR 注册：通过邀请码加入公司
-        if not user.invite_code:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="请输入公司邀请码"
-            )
+    if user.invite_code:
         company_result = await db.execute(
             select(Company).where(Company.invite_code == user.invite_code.strip().upper())
         )
@@ -350,7 +314,7 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
 
     logger.info(f"新用户注册: {user.username}, 角色: {user.role}, 公司: {company_id}")
 
-    response = {
+    return {
         "id": new_user.id,
         "username": new_user.username,
         "email": new_user.email,
@@ -360,12 +324,6 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
         "is_active": new_user.is_active,
         "company_id": new_user.company_id
     }
-
-    # HR 注册成功后返回邀请码，方便分享给同事
-    if invite_code:
-        response["invite_code"] = invite_code
-
-    return response
 
 
 @router.post("/login", response_model=TokenResponse)

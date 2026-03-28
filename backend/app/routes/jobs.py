@@ -17,6 +17,7 @@ from ..utils.logger import logger
 from ..auth import get_current_active_user, Permission
 from ..database import get_db
 from ..auth.rbac import check_permission
+from ..services.subscription import check_job_quota
 
 router = APIRouter(prefix="/api/jobs", tags=["Jobs"])
 
@@ -55,6 +56,14 @@ async def create_job(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="用户不存在"
+            )
+
+        # 检查岗位配额
+        allowed, error_msg = await check_job_quota(user, db)
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=error_msg
             )
 
         # 生成唯一 ID

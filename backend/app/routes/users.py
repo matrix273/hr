@@ -6,7 +6,7 @@ from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from ..database import get_db
-from ..models.user import User, Contact
+from ..models.user import User, Contact, Company
 from ..auth import (
     get_password_hash,
     get_current_active_user,
@@ -55,6 +55,7 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     is_active: Optional[bool] = None
     password: Optional[str] = None
+    company_id: Optional[str] = None
 
 
 class UserResponse(BaseModel):
@@ -363,6 +364,22 @@ async def update_user(
     if user_data.password is not None and user_data.password.strip():
         user.password_hash = get_password_hash(user_data.password)
         logger.info(f"更新用户密码: {user.username}")
+
+    # 管理员可变更用户的公司关联
+    if "company_id" in user_data.model_fields_set and current_user_role == Role.ADMIN:
+        new_company_id = user_data.company_id.strip() if user_data.company_id else None
+        if new_company_id:
+            # 验证公司是否存在
+            company_result = await db.execute(
+                select(Company).where(Company.id == new_company_id)
+            )
+            if not company_result.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="目标公司不存在"
+                )
+        user.company_id = new_company_id
+        logger.info(f"更新用户 {user.username} 公司关联为: {new_company_id or '无'}")
 
     await db.commit()
     await db.refresh(user)

@@ -6,12 +6,23 @@ import {
   FileSearchOutlined,
   SearchOutlined,
   TeamOutlined,
-  CreditCardOutlined
+  CreditCardOutlined,
+  BankOutlined
 } from '@ant-design/icons';
+import { hasAnyPermission } from '../utils/permissions';
+import { Permission } from '../utils/permissions';
 
 const { Title } = Typography;
 
 const Sidebar = ({ activeItem, onItemClick, collapsed }) => {
+  // 公司管理菜单仅对有权限的用户显示
+  const canManageCompany = hasAnyPermission([
+    Permission.COMPANY_READ,
+    Permission.COMPANY_CREATE,
+    Permission.COMPANY_UPDATE,
+    Permission.COMPANY_DELETE
+  ]);
+
   const menuItems = [
     {
       key: 'upload',
@@ -38,6 +49,11 @@ const Sidebar = ({ activeItem, onItemClick, collapsed }) => {
       icon: <TeamOutlined />,
       label: '用户管理'
     },
+    ...(canManageCompany ? [{
+      key: 'companies',
+      icon: <BankOutlined />,
+      label: '公司管理'
+    }] : []),
     {
       key: 'payment',
       icon: <CreditCardOutlined />,

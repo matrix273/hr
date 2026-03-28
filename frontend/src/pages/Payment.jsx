@@ -1,21 +1,47 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Card, Button, Badge, Space, Spin, Empty, Typography, Tag } from 'antd';
-import { CheckCircleOutlined, LoadingOutlined, QrcodeOutlined, ClockCircleOutlined, AppstoreOutlined, FileTextOutlined, PlusCircleOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import {
+    Card, Button, Badge, Space, Spin, Empty, Typography, Tag,
+    InputNumber, Tooltip, Divider, Modal
+} from 'antd';
+import {
+    CheckCircleOutlined, LoadingOutlined, QrcodeOutlined,
+    ClockCircleOutlined, AppstoreOutlined, FileTextOutlined,
+    PlusCircleOutlined, MinusCircleOutlined, AlipayCircleOutlined,
+    WechatOutlined, CreditCardOutlined, CrownOutlined, CloseCircleOutlined
+} from '@ant-design/icons';
 import { getApiBaseUrl } from '../utils/api';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
+
+/** 支付方式图标映射 */
+const METHOD_ICON_MAP = {
+    alipay_qrcode: <AlipayCircleOutlined style={{ fontSize: 32, color: '#1677ff' }} />,
+    wechat_qrcode: <WechatOutlined style={{ fontSize: 32, color: '#07c160' }} />,
+    bank: <CreditCardOutlined style={{ fontSize: 32, color: '#faad14' }} />,
+    default: <QrcodeOutlined style={{ fontSize: 32, color: '#8c8c8c' }} />,
+};
+
+/** 支付方式背景色 */
+const METHOD_BG_MAP = {
+    alipay_qrcode: 'linear-gradient(135deg, #e6f4ff 0%, #bae0ff 100%)',
+    wechat_qrcode: 'linear-gradient(135deg, #f6ffed 0%, #d9f7be 100%)',
+    bank: 'linear-gradient(135deg, #fffbe6 0%, #fff1b8 100%)',
+    default: 'linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%)',
+};
 
 const PaymentPage = () => {
     const [plans, setPlans] = useState([]);
     const [paymentMethods, setPaymentMethods] = useState([]);
     const [selectedPlan, setSelectedPlan] = useState(null);
     const [selectedMethod, setSelectedMethod] = useState(null);
+    const [quantity, setQuantity] = useState(1);
     const [qrcodeData, setQrcodeData] = useState(null);
     const [orderId, setOrderId] = useState(null);
     const [paymentStatus, setPaymentStatus] = useState('idle');
     const [userInfo, setUserInfo] = useState(null);
     const [orders, setOrders] = useState([]);
     const [activeTab, setActiveTab] = useState('plans');
+    const pollTimerRef = useRef(null);
 
     const API_BASE = getApiBaseUrl();
     const TOKEN = localStorage.getItem('token');
@@ -25,12 +51,9 @@ const PaymentPage = () => {
         'Content-Type': 'application/json'
     };
 
-    // 获取套餐列表
     const fetchPlans = async () => {
         try {
-            const response = await fetch(`${API_BASE}/payment/plans`, {
-                headers
-            });
+            const response = await fetch(`${API_BASE}/payment/plans`, { headers });
             const data = await response.json();
             setPlans(data);
         } catch (error) {
@@ -38,7 +61,6 @@ const PaymentPage = () => {
         }
     };
 
-    // 获取支付方式
     const fetchPaymentMethods = async () => {
         try {
             const response = await fetch(`${API_BASE}/payment/methods`);
@@ -49,12 +71,9 @@ const PaymentPage = () => {
         }
     };
 
-    // 获取用户信息
     const fetchUserInfo = async () => {
         try {
-            const response = await fetch(`${API_BASE}/payment/user-info`, {
-                headers
-            });
+            const response = await fetch(`${API_BASE}/payment/user-info`, { headers });
             const data = await response.json();
             setUserInfo(data);
         } catch (error) {
@@ -62,12 +81,9 @@ const PaymentPage = () => {
         }
     };
 
-    // 获取订单列表
     const fetchOrders = async () => {
         try {
-            const response = await fetch(`${API_BASE}/payment/orders`, {
-                headers
-            });
+            const response = await fetch(`${API_BASE}/payment/orders`, { headers });
             const data = await response.json();
             setOrders(data);
         } catch (error) {
@@ -75,21 +91,19 @@ const PaymentPage = () => {
         }
     };
 
-    // 激活免费套餐（静默激活，不显示支付流程）
     const activateFreePlan = async (plan) => {
         if (userInfo?.subscription_plan === plan.id) return;
         try {
-            await fetch(`${API_BASE}/payment/create-qrcode?plan_id=${plan.id}&payment_method=free`, {
-                method: 'POST',
-                headers
-            });
+            await fetch(
+                `${API_BASE}/payment/create-qrcode?plan_id=${plan.id}&payment_method=free`,
+                { method: 'POST', headers }
+            );
             await fetchUserInfo();
         } catch (error) {
             console.error('激活免费套餐失败:', error);
         }
     };
 
-    // 创建支付订单
     const createPayment = async () => {
         if (!selectedPlan || !selectedMethod) {
             alert('请选择套餐和支付方式');
@@ -98,19 +112,13 @@ const PaymentPage = () => {
 
         try {
             setPaymentStatus('processing');
-            
-            const response = await fetch(`${API_BASE}/payment/create-qrcode?plan_id=${selectedPlan.id}&payment_method=${selectedMethod.code}`, {
-                method: 'POST',
-                headers
-            });
-
+            const url = `${API_BASE}/payment/create-qrcode?plan_id=${selectedPlan.id}&payment_method=${selectedMethod.code}&quantity=${quantity}`;
+            const response = await fetch(url, { method: 'POST', headers });
             const data = await response.json();
 
             if (response.ok) {
                 setQrcodeData(data.qrcode_data);
                 setOrderId(data.order_id);
-                
-                // 开始轮询检查支付状态
                 startPolling(data.order_id);
             } else {
                 setPaymentStatus('failed');
@@ -123,44 +131,44 @@ const PaymentPage = () => {
         }
     };
 
-    // 轮询检查支付状态
-    const startPolling = (orderId) => {
-        const pollInterval = setInterval(async () => {
+    const startPolling = (oid) => {
+        if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+        pollTimerRef.current = setInterval(async () => {
             try {
-                const response = await fetch(`${API_BASE}/payment/verify/${orderId}`, {
-                    method: 'POST',
-                    headers
+                const response = await fetch(`${API_BASE}/payment/verify/${oid}`, {
+                    method: 'POST', headers
                 });
-
                 const data = await response.json();
-
                 if (data.payment_status?.paid) {
-                    clearInterval(pollInterval);
+                    clearInterval(pollTimerRef.current);
+                    pollTimerRef.current = null;
                     setPaymentStatus('success');
-                    await fetchUserInfo(); // 更新用户信息
-                    await fetchOrders(); // 更新订单列表
+                    await fetchUserInfo();
+                    await fetchOrders();
                 }
             } catch (error) {
                 console.error('验证支付失败:', error);
             }
-        }, 3000); // 每3秒检查一次
-
-        // 5分钟后停止轮询
-        setTimeout(() => clearInterval(pollInterval), 5 * 60 * 1000);
+        }, 3000);
     };
 
-    // 手动验证支付
+    const cancelPayment = () => {
+        if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+        }
+        setQrcodeData(null);
+        setOrderId(null);
+        setPaymentStatus('idle');
+    };
+
     const verifyPayment = async () => {
         if (!orderId) return;
-
         try {
             const response = await fetch(`${API_BASE}/payment/verify/${orderId}`, {
-                method: 'POST',
-                headers
+                method: 'POST', headers
             });
-
             const data = await response.json();
-
             if (data.payment_status?.paid) {
                 setPaymentStatus('success');
                 await fetchUserInfo();
@@ -181,26 +189,46 @@ const PaymentPage = () => {
         fetchOrders();
     }, []);
 
-    // 重置支付状态
     const resetPayment = () => {
-        setQrcodeData(null);
-        setOrderId(null);
-        setPaymentStatus('idle');
+        cancelPayment();
         setSelectedPlan(null);
         setSelectedMethod(null);
+        setQuantity(1);
     };
 
-    // 套餐名称映射
+    // 组件卸载时清除轮询
+    useEffect(() => {
+        return () => {
+            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+        };
+    }, []);
+
     const planNameMap = {
         free: '免费版', basic: '基础版',
-        professional: '专业版', enterprise: '企业版'
+        professional: '专业版', enterprise: '企业版',
+        pro: '专业版'
     };
 
-    // 当前套餐详情
     const currentPlanDetail = useMemo(() => {
         if (!userInfo?.subscription_plan || !plans.length) return null;
         return plans.find(p => p.id === userInfo.subscription_plan);
     }, [userInfo, plans]);
+
+    /** 计算总价 */
+    const totalPrice = useMemo(() => {
+        if (!selectedPlan) return 0;
+        return selectedPlan.price * quantity;
+    }, [selectedPlan, quantity]);
+
+    /** 折扣提醒 */
+    const discountHint = useMemo(() => {
+        if (!selectedPlan || selectedPlan.price === 0) return null;
+        const unit = selectedPlan.price;
+        if (quantity >= 12) return { months: 12, saving: unit * 12, label: '年付' };
+        if (quantity >= 6) return { months: 6, saving: 0, label: '半年付' };
+        if (quantity >= 3) return { months: 3, saving: 0, label: '季付' };
+        return null;
+    }, [selectedPlan, quantity]);
 
     const getStatusBadge = (status) => {
         const statusMap = {
@@ -216,28 +244,33 @@ const PaymentPage = () => {
     return (
         <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
             <Title level={2} style={{ marginBottom: '24px' }}>
+                <CrownOutlined style={{ color: '#faad14', marginRight: 8 }} />
                 会员订阅
             </Title>
 
+            {/* 当前套餐概览 */}
             <Card style={{ marginBottom: '24px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{
+                    display: 'flex', justifyContent: 'space-between',
+                    alignItems: 'flex-start', flexWrap: 'wrap', gap: 16
+                }}>
                     <div>
                         <Text type="secondary">当前套餐</Text>
                         <div style={{ fontSize: '24px', fontWeight: 'bold', marginTop: '4px', marginBottom: '12px' }}>
                             {planNameMap[userInfo?.subscription_plan] || '未知'}
                         </div>
                         {currentPlanDetail && (
-                            <div style={{ display: 'flex', gap: '24px' }}>
+                            <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <FileTextOutlined style={{ color: '#4f46e5' }} />
                                     <Text type="secondary">
-                                        筛选简历 <Text strong>{currentPlanDetail.max_resumes}</Text> 份/月
+                                        筛选简历 <Text strong>{userInfo?.usage?.screening_used ?? 0}</Text> / <Text strong>{currentPlanDetail.max_resumes}</Text> 份/月
                                     </Text>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <PlusCircleOutlined style={{ color: '#4f46e5' }} />
                                     <Text type="secondary">
-                                        新增岗位 <Text strong>{currentPlanDetail.max_jobs}</Text> 个/月
+                                        新增岗位 <Text strong>{userInfo?.usage?.jobs_used ?? 0}</Text> / <Text strong>{currentPlanDetail.max_jobs}</Text> 个/月
                                     </Text>
                                 </div>
                             </div>
@@ -276,149 +309,332 @@ const PaymentPage = () => {
 
             {activeTab === 'plans' ? (
                 <>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
-                        {plans.map((plan) => (
-                            <Card
-                                key={plan.id}
-                                hoverable
-                                style={{
-                                    cursor: 'pointer',
-                                    border: selectedPlan?.id === plan.id ? '2px solid #1890ff' : '1px solid #f0f0f0',
-                                    transition: 'all 0.3s'
-                                }}
-                                onClick={() => {
-                                    setSelectedPlan(plan);
-                                    if (plan.price === 0) {
-                                        activateFreePlan(plan);
-                                    } else {
-                                        // 自动滚动到支付方式区域
-                                        setTimeout(() => {
-                                            document.getElementById('payment-section')?.scrollIntoView({ behavior: 'smooth' });
-                                        }, 100);
-                                    }
-                                }}
-                            >
-                                <Title level={4} style={{ marginBottom: '8px' }}>
-                                    {plan.name}
-                                </Title>
-                                <Text type="secondary" style={{ display: 'block', marginBottom: '16px' }}>
-                                    {plan.description}
-                                </Text>
-                                <div style={{ fontSize: '32px', fontWeight: 'bold', marginBottom: '16px' }}>
-                                    ¥{plan.price}
-                                    {plan.price > 0 && <span style={{ fontSize: '14px', fontWeight: 'normal', marginLeft: '4px' }}> / 月</span>}
-                                </div>
-                                <div style={{ listStyle: 'none', padding: 0 }}>
-                                    <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
-                                        <CheckCircleOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
-                                        <span>{plan.max_resumes} 份筛选简历/月</span>
+                    {/* 套餐卡片 */}
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                        gap: '16px', marginBottom: '24px'
+                    }}>
+                        {plans.map((plan) => {
+                            const isCurrent = userInfo?.subscription_plan === plan.id;
+                            const isSelected = selectedPlan?.id === plan.id;
+                            return (
+                                <Card
+                                    key={plan.id}
+                                    hoverable
+                                    style={{
+                                        cursor: 'pointer',
+                                        border: isSelected
+                                            ? '2px solid #1890ff'
+                                            : isCurrent
+                                                ? '2px solid #52c41a'
+                                                : '1px solid #f0f0f0',
+                                        transition: 'all 0.3s',
+                                        position: 'relative',
+                                        borderRadius: 12,
+                                    }}
+                                    onClick={() => {
+                                        setSelectedPlan(plan);
+                                        setQuantity(1);
+                                        if (plan.price === 0) {
+                                            activateFreePlan(plan);
+                                        } else {
+                                            setTimeout(() => {
+                                                document.getElementById('payment-section')
+                                                    ?.scrollIntoView({ behavior: 'smooth' });
+                                            }, 100);
+                                        }
+                                    }}
+                                >
+                                    {isCurrent && (
+                                        <Tag color="green" style={{
+                                            position: 'absolute', top: 12, right: 12, margin: 0
+                                        }}>
+                                            当前
+                                        </Tag>
+                                    )}
+                                    <Title level={4} style={{ marginBottom: '8px' }}>
+                                        {plan.name}
+                                    </Title>
+                                    <Paragraph type="secondary" style={{ marginBottom: 16, minHeight: 44 }}>
+                                        {plan.description}
+                                    </Paragraph>
+                                    <div style={{ fontSize: '32px', fontWeight: 'bold', marginBottom: '16px' }}>
+                                        ¥{plan.price}
+                                        {plan.price > 0 && (
+                                            <span style={{ fontSize: '14px', fontWeight: 'normal', marginLeft: '4px' }}>
+                                                / 月
+                                            </span>
+                                        )}
                                     </div>
-                                    <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
-                                        <CheckCircleOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
-                                        <span>{plan.max_jobs} 个新增岗位/月</span>
-                                    </div>
-                                    {plan.priority_support && (
+                                    <div style={{ listStyle: 'none', padding: 0 }}>
                                         <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
                                             <CheckCircleOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
-                                            优先支持
+                                            <span>{plan.max_resumes} 份筛选简历/月</span>
                                         </div>
-                                    )}
-                                </div>
-                            </Card>
-                        ))}
+                                        <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
+                                            <CheckCircleOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
+                                            <span>{plan.max_jobs} 个新增岗位/月</span>
+                                        </div>
+                                        {plan.priority_support && (
+                                            <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
+                                                <CheckCircleOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
+                                                优先支持
+                                            </div>
+                                        )}
+                                    </div>
+                                </Card>
+                            );
+                        })}
                     </div>
 
+                    {/* 数量选择 + 支付方式 + 支付按钮 */}
                     {selectedPlan && selectedPlan.price > 0 && (
                         <Card id="payment-section" style={{ marginBottom: '24px' }}>
-                            <Title level={4} style={{ marginBottom: '16px' }}>
-                                选择支付方式
+                            <Title level={4} style={{ marginBottom: '20px' }}>
+                                购买方案
                             </Title>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
-                                {paymentMethods.map((method) => (
-                                    <Card
-                                        key={method.code}
-                                        hoverable
+
+                            {/* 订阅时长 */}
+                            <div style={{ marginBottom: 24 }}>
+                                <Text strong style={{ display: 'block', marginBottom: 12 }}>
+                                    订阅时长
+                                </Text>
+                                <Space size="middle">
+                                    {[1, 3, 6, 12].map((n) => (
+                                        <Button
+                                            key={n}
+                                            type={quantity === n ? 'primary' : 'default'}
+                                            shape="round"
+                                            onClick={() => setQuantity(n)}
+                                            style={{ minWidth: 72 }}
+                                        >
+                                            {n} 个月
+                                        </Button>
+                                    ))}
+                                    <InputNumber
+                                        min={1}
+                                        max={12}
+                                        value={quantity}
+                                        onChange={(val) => val && setQuantity(val)}
+                                        style={{ width: 80 }}
+                                        addonAfter="月"
+                                    />
+                                </Space>
+                                <div style={{ marginTop: 8 }}>
+                                    <Text type="secondary">
+                                        预计到期：
+                                        {(() => {
+                                            const exp = new Date();
+                                            exp.setMonth(exp.getMonth() + quantity);
+                                            return exp.toLocaleDateString();
+                                        })()}
+                                    </Text>
+                                </div>
+                            </div>
+
+                            <Divider style={{ margin: '24px 0' }} />
+
+                            {/* 支付方式 */}
+                            <div>
+                                <Text strong style={{ display: 'block', marginBottom: 12 }}>
+                                    选择支付方式
+                                </Text>
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                                    gap: '12px'
+                                }}>
+                                    {paymentMethods.map((method) => {
+                                        const isSelected = selectedMethod?.code === method.code;
+                                        const icon = METHOD_ICON_MAP[method.code] || METHOD_ICON_MAP.default;
+                                        const bg = METHOD_BG_MAP[method.code] || METHOD_BG_MAP.default;
+                                        return (
+                                            <Card
+                                                key={method.code}
+                                                hoverable
+                                                onClick={() => setSelectedMethod(method)}
+                                                style={{
+                                                    cursor: 'pointer',
+                                                    border: isSelected
+                                                        ? '2px solid #1890ff'
+                                                        : '1px solid #f0f0f0',
+                                                    borderRadius: 12,
+                                                    background: bg,
+                                                    transition: 'all 0.3s',
+                                                    textAlign: 'center',
+                                                }}
+                                                bodyStyle={{ padding: '16px 12px' }}
+                                            >
+                                                <div style={{ marginBottom: 8 }}>
+                                                    {icon}
+                                                </div>
+                                                <div style={{ fontWeight: 600, fontSize: 14 }}>
+                                                    {method.name}
+                                                </div>
+                                                {method.description && (
+                                                    <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4 }}>
+                                                        {method.description}
+                                                    </div>
+                                                )}
+                                            </Card>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <Divider style={{ margin: '24px 0' }} />
+
+                            {/* 支付汇总 */}
+                            <div style={{
+                                display: 'flex', justifyContent: 'space-between',
+                                alignItems: 'center', flexWrap: 'wrap', gap: 12
+                            }}>
+                                <div>
+                                    <Space size="large">
+                                        <span>
+                                            <Text type="secondary">{selectedPlan.name}</Text>
+                                            {' x '}{quantity} 个月
+                                        </span>
+                                        <span style={{ fontSize: 24, fontWeight: 'bold', color: '#f5222d' }}>
+                                            ¥{totalPrice}
+                                        </span>
+                                    </Space>
+                                    {discountHint && (
+                                        <Tooltip title={`购买 ${discountHint.months} 个月，平均每月 ¥${(totalPrice / quantity).toFixed(0)}`}>
+                                            <Tag color="orange" style={{ marginLeft: 8 }}>
+                                                {discountHint.label}
+                                            </Tag>
+                                        </Tooltip>
+                                    )}
+                                </div>
+                                {selectedMethod && paymentStatus === 'idle' && (
+                                    <Button
+                                        type="primary"
+                                        size="large"
+                                        onClick={createPayment}
                                         style={{
-                                            cursor: 'pointer',
-                                            border: selectedMethod?.code === method.code ? '2px solid #1890ff' : '1px solid #f0f0f0'
+                                            borderRadius: 8,
+                                            height: 48,
+                                            paddingInline: 48,
+                                            fontWeight: 600,
+                                            fontSize: 16
                                         }}
-                                        onClick={() => setSelectedMethod(method)}
                                     >
-                                        <div style={{ display: 'flex', alignItems: 'center', padding: '12px' }}>
-                                            <QrcodeOutlined style={{ fontSize: '24px', marginRight: '12px', color: '#1890ff' }} />
-                                            <div>
-                                                <div style={{ fontWeight: 'bold' }}>{method.name}</div>
-                                                <Text type="secondary">{method.description}</Text>
-                                            </div>
-                                        </div>
-                                    </Card>
-                                ))}
+                                        立即支付 ¥{totalPrice}
+                                    </Button>
+                                )}
                             </div>
                         </Card>
                     )}
 
-                    {selectedPlan && selectedMethod && paymentStatus === 'idle' && (
-                        <div style={{ textAlign: 'center' }}>
-                            <Button
-                                type="primary"
-                                size="large"
-                                onClick={createPayment}
-                                style={{ width: '100%', maxWidth: '400px' }}
-                            >
-                                支付 ¥{selectedPlan.price}
-                            </Button>
-                        </div>
-                    )}
-
-                    {paymentStatus === 'processing' && qrcodeData && (
-                        <Card style={{ maxWidth: '500px', margin: '0 auto' }}>
-                            <Title level={4} style={{ marginBottom: '8px' }}>
+                    {/* 扫码支付弹窗 */}
+                    <Modal
+                        open={paymentStatus === 'processing' && !!qrcodeData}
+                        footer={null}
+                        closable={false}
+                        width={420}
+                        centered
+                        destroyOnClose
+                    >
+                        <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                            <Title level={4} style={{ marginBottom: 8 }}>
                                 扫码支付
                             </Title>
-                            <Text type="secondary" style={{ display: 'block', marginBottom: '16px' }}>
-                                请使用 {selectedMethod.name} 扫描二维码完成支付
+                            <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
+                                请使用 {selectedMethod?.name} 扫描二维码
                             </Text>
-                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+                            <Text strong style={{ display: 'block', marginBottom: 20, fontSize: 18, color: '#f5222d' }}>
+                                ¥{totalPrice}
+                            </Text>
+                            <div style={{
+                                display: 'inline-block', padding: 12,
+                                background: selectedMethod?.code === 'wechat_qrcode'
+                                    ? '#f6ffed'
+                                    : selectedMethod?.code === 'alipay_qrcode'
+                                        ? '#e6f4ff'
+                                        : '#fff',
+                                borderRadius: 8,
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                                marginBottom: 16
+                            }}>
                                 <img
                                     src={qrcodeData}
                                     alt="支付二维码"
-                                    style={{ width: '256px', height: '256px' }}
+                                    style={{ width: '220px', height: '220px', display: 'block' }}
                                 />
                             </div>
-                            <div style={{ textAlign: 'center' }}>
-                                <Text style={{ display: 'block', marginBottom: '8px' }}>
+                            <div>
+                                <Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 12 }}>
                                     订单号: {orderId}
                                 </Text>
-                                <Text style={{ display: 'block', marginBottom: '8px' }}>
-                                    金额: ¥{selectedPlan?.price}
-                                </Text>
-                                <div style={{ marginBottom: '16px' }}>
-                                    <Spin indicator={<LoadingOutlined style={{ fontSize: '14px' }} spin />} />
-                                    <span style={{ marginLeft: '8px', color: '#1890ff' }}>等待支付中...</span>
+                                <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    marginTop: 16,
+                                    padding: '0 8px'
+                                }}>
+                                    <Button
+                                        style={{
+                                            background: '#fff1f0',
+                                            color: '#ff4d4f',
+                                            border: '1px solid #ffa39e',
+                                            borderRadius: 8,
+                                            height: 40,
+                                            paddingInline: 24
+                                        }}
+                                        icon={<CloseCircleOutlined />}
+                                        onClick={cancelPayment}
+                                    >
+                                        取消支付
+                                    </Button>
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                        <Spin indicator={<LoadingOutlined style={{ fontSize: 14 }} spin />} />
+                                        <span style={{ marginLeft: 6, color: '#1890ff', fontSize: 13 }}>
+                                            等待支付中
+                                        </span>
+                                    </div>
+                                    <Button
+                                        type="primary"
+                                        style={{
+                                            borderRadius: 8,
+                                            height: 40,
+                                            paddingInline: 24
+                                        }}
+                                        onClick={verifyPayment}
+                                    >
+                                        已完成支付
+                                    </Button>
                                 </div>
-                                <Button onClick={verifyPayment}>
-                                    手动验证支付
-                                </Button>
                             </div>
-                        </Card>
-                    )}
+                        </div>
+                    </Modal>
 
-                    {paymentStatus === 'success' && (
-                        <Card style={{ maxWidth: '500px', margin: '0 auto' }}>
-                            <Title level={4} style={{ color: '#52c41a', marginBottom: '8px' }}>
+                    {/* 支付成功弹窗 */}
+                    <Modal
+                        open={paymentStatus === 'success'}
+                        footer={null}
+                        onCancel={resetPayment}
+                        width={400}
+                        centered
+                        destroyOnClose
+                    >
+                        <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                            <CheckCircleOutlined
+                                style={{ fontSize: 64, color: '#52c41a', display: 'block', marginBottom: 16 }}
+                            />
+                            <Title level={3} style={{ color: '#52c41a', marginBottom: 8 }}>
                                 支付成功！
                             </Title>
-                            <Text type="secondary" style={{ display: 'block', marginBottom: '16px' }}>
-                                您已成功升级到 {selectedPlan?.name}
-                            </Text>
-                            <div style={{ textAlign: 'center' }}>
-                                <div style={{ fontSize: '64px', marginBottom: '16px' }}>🎉</div>
-                                <Button onClick={resetPayment}>
-                                    继续购买
-                                </Button>
-                            </div>
-                        </Card>
-                    )}
+                            <Paragraph type="secondary">
+                                您已成功订阅 {selectedPlan?.name} x{quantity} 个月
+                            </Paragraph>
+                            <Button type="primary" onClick={resetPayment} style={{ marginTop: 16 }}>
+                                继续购买
+                            </Button>
+                        </div>
+                    </Modal>
                 </>
             ) : (
                 <Card>
@@ -434,7 +650,10 @@ const PaymentPage = () => {
                                     key={order.order_id}
                                     style={{ marginBottom: '12px' }}
                                 >
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{
+                                        display: 'flex', justifyContent: 'space-between',
+                                        alignItems: 'center', flexWrap: 'wrap', gap: 12
+                                    }}>
                                         <div style={{ flex: 1 }}>
                                             <Space style={{ marginBottom: '8px' }}>
                                                 <Text strong>{order.product_name}</Text>
@@ -450,7 +669,7 @@ const PaymentPage = () => {
                                             </div>
                                         </div>
                                         <div style={{ textAlign: 'right' }}>
-                                            <Text style={{ fontSize: '20px', fontWeight: 'bold' }}>
+                                            <Text style={{ fontSize: '20px', fontWeight: 'bold', color: '#f5222d' }}>
                                                 ¥{order.amount}
                                             </Text>
                                         </div>
