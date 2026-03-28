@@ -253,6 +253,7 @@ async def screen_resumes(
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "Access-Control-Allow-Origin": "*",
+            "X-Accel-Buffering": "no",
         }
     )
 
@@ -326,6 +327,7 @@ async def get_screening_history(
                 "raw_score": screening.raw_score if hasattr(screening, 'raw_score') else screening.rerank_score,  # 如果存在原始分数则使用，否则使用rerank_score
                 "rank": screening.rank,
                 "llm_evaluation": screening.llm_evaluation,
+                "matching_score": screening.matching_score,
                 "screening_created_at": int(screening.created_at.timestamp()) if screening.created_at else None
             })
 
@@ -407,6 +409,7 @@ async def get_custom_screening_history(
                 "raw_score": screening.raw_score if hasattr(screening, 'raw_score') else screening.rerank_score,  # 如果存在原始分数则使用，否则使用rerank_score
                 "rank": screening.rank,
                 "llm_evaluation": screening.llm_evaluation,
+                "matching_score": screening.matching_score,
                 "screening_created_at": int(screening.created_at.timestamp()) if screening.created_at else None
             })
 
@@ -647,6 +650,7 @@ async def screen_resumes_by_job(
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "Access-Control-Allow-Origin": "*",
+            "X-Accel-Buffering": "no",
         }
     )
 

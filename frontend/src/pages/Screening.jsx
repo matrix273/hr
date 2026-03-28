@@ -406,7 +406,7 @@ const Screening = () => {
     
     data.forEach((result, index) => {
       content += `## ${index + 1}. ${result.filename || '未知文件'}\n\n`;
-      content += `- **相似度**: ${(result.rerank_score * 100).toFixed(1)}%\n`;
+      content += `- **整体匹配度评分**: ${(() => { const s = extractMatchingScore(result.llm_evaluation); return s != null ? s + '/100' : '-'; })()}\n`;
       content += `- **上传时间**: ${formatDate(result.created_at)}\n`;
       content += `- **文件大小**: ${formatSize(result.file_size)}\n\n`;
       
@@ -429,7 +429,7 @@ const Screening = () => {
     
     data.forEach((result, index) => {
       markdownContent += `## ${index + 1}. ${result.filename || '未知文件'}\n\n`;
-      markdownContent += `- **相似度**: ${(result.rerank_score * 100).toFixed(1)}%\n`;
+      markdownContent += `- **整体匹配度评分**: ${(() => { const s = extractMatchingScore(result.llm_evaluation); return s != null ? s + '/100' : '-'; })()}\n`;
       markdownContent += `- **上传时间**: ${formatDate(result.created_at)}\n`;
       markdownContent += `- **文件大小**: ${formatSize(result.file_size)}\n\n`;
       
@@ -761,6 +761,32 @@ const Screening = () => {
     } finally {
       setHistoryLoading(false);
     }
+  };
+
+  // 从 LLM 评估文本中提取匹配度评分
+  const extractMatchingScore = (llmEvaluation) => {
+    if (!llmEvaluation) return null;
+    // 优先匹配：整体匹配度评分：**65/100** 或 整体匹配度评分：65/100（同行的格式）
+    let match = llmEvaluation.match(
+      /整体匹配度评分[：:\s]*\*{0,2}([0-9]{1,3})\s*[分/]\s*100\*{0,2}/
+    );
+    if (match && parseInt(match[1], 10) <= 100) return parseInt(match[1], 10);
+    // 备用1：整体匹配度评分标题下方的 "匹配度：XX分"（跨行）
+    match = llmEvaluation.match(
+      /整体匹配度评分[^\n]*\n+[^\n]*?匹配度[：:\s]*\*{0,2}([0-9]{1,3})/
+    );
+    if (match && parseInt(match[1], 10) <= 100) return parseInt(match[1], 10);
+    // 备用2：独立行的 "匹配度：XX分"
+    match = llmEvaluation.match(
+      /(?:^|\n)\s*匹配度[：:\s]*\*{0,2}([0-9]{1,3})\s*[分%/]/
+    );
+    if (match && parseInt(match[1], 10) <= 100) return parseInt(match[1], 10);
+    // 备用3：标题下方独立数字
+    match = llmEvaluation.match(
+      /整体匹配度评分[^\n]*\n+\s*([0-9]{1,3})\b/
+    );
+    if (match && parseInt(match[1], 10) <= 100) return parseInt(match[1], 10);
+    return null;
   };
 
   const formatDate = (timestamp) => {
@@ -1158,9 +1184,132 @@ const Screening = () => {
               
               {/* 使用函数式条件渲染，避免嵌套三元运算符 */}
               {(() => {
-                // 筛选进行中
+                // 渲染新筛选结果的通用函数
+                const renderResults = () => {
+                  if (results.length === 0) {
+                    return (
+                      <div style={styles.empty}>
+                        <div style={styles.emptyIcon}>🔍</div>
+                        <p style={styles.emptyText}>
+                          {error ? '未找到匹配的简历' : '选择岗位或输入描述后开始筛选'}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div style={styles.resultsList}>
+                      {results.map((result, index) => {
+                        const isExpanded = expandedItems[result.resume_id] || false;
+                        return (
+                          <div 
+                            key={result.resume_id} 
+                            style={isExpanded ? styles.resultItemExpanded : styles.resultItem}
+                          >
+                            <div
+                              style={{ 
+                                ...(isExpanded ? styles.resultHeaderSticky : styles.resultHeader), 
+                                cursor: 'pointer',
+                                display: isExpanded && stickyTitle === (result.filename || '未知文件名') ? 'none' : 'flex'
+                              }}
+                              onClick={() => toggleExpand(result.resume_id, result.filename || '未知文件名')}
+                            >
+                              {/* 合并的复选框 */}
+                              <div
+                                style={{
+                                  ...styles.customCheckbox,
+                                  border: '2px solid #667eea',
+                                  ...(selectedResults.includes(result.resume_id) ? styles.customCheckboxChecked : {})
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectResult(result.resume_id, null);
+                                }}
+                              >
+                                {selectedResults.includes(result.resume_id) && '✓'}
+                              </div>
+                              
+                              <div style={styles.resultRank}>
+                                <span style={styles.rankNumber}>#{index + 1}</span>
+                              </div>
+                              <div style={styles.resultInfo}>
+                                <div style={styles.resultTitle}>
+                                  {result.filename || '未知文件名'}
+                                  <span style={{ marginLeft: '8px', fontSize: '12px', color: '#666' }}>
+                                    {isExpanded ? '▼ 点击收起' : '▶ 点击展开'}
+                                  </span>
+                                </div>
+                                <div style={styles.resultMeta}>
+                                    <span style={styles.metaItem} title="整体匹配度评分">
+                                    整体匹配度评分：{(() => { const s = extractMatchingScore(result.llm_evaluation); return s != null ? s + '/100' : '-'; })()}
+                                  </span>
+                                  <span style={styles.metaSeparator}>•</span>
+                                  <span style={styles.metaItem}>
+                                    📅 {formatDate(result.created_at)}
+                                    </span>
+                                    <span style={styles.metaSeparator}>•</span>
+                                    <span style={styles.metaItem}>
+                                      📦 {formatSize(result.file_size)}
+                                    </span>
+                                </div>
+                              </div>
+                              <button
+                                style={styles.viewButton}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewResume(result.resume_id, result.filename);
+                                }}
+                              >
+                                查看简历
+                              </button>
+                            </div>
+                            {isExpanded && (
+                              <div style={styles.evaluationSection}>
+                                <div style={styles.stickyHeader}>
+                                  <h4 style={styles.evaluationTitle}>
+                                    AI 评估
+                                    <span style={styles.scoreHint}>（整体评分见下方评估内容）</span>
+                                  </h4>
+                                  <button
+                                    style={styles.collapseButton}
+                                    onClick={() => toggleExpand(result.resume_id, result.filename || '未知文件名')}
+                                  >
+                                    ▲ 收起
+                                  </button>
+                                </div>
+                                <div style={styles.evaluationContent}>
+                                  <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                      table: MarkdownTable,
+                                      th: MarkdownTh,
+                                      td: MarkdownTd,
+                                    }}
+                                  >
+                                    {result.llm_evaluation}
+                                  </ReactMarkdown>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                };
+
+                // 筛选进行中 - 显示进度条，同时显示已完成的结果
                 if (loading) {
-                  return <div style={styles.loading}>筛选中...</div>;
+                  return (
+                    <div>
+                      {currentProgress && (
+                        <div style={styles.loading}>
+                          筛选中... {currentProgress.filename} ({currentProgress.current}/{currentProgress.total})
+                        </div>
+                      )}
+                      {renderResults()}
+                    </div>
+                  );
                 }
                 
                 // 显示历史记录
@@ -1255,8 +1404,8 @@ const Screening = () => {
                                   </span>
                                 </div>
                                 <div style={styles.resultMeta}>
-                                  <span style={styles.metaItem} title="重排序相似度分数">
-                                    🎯 相似度: {(result.rerank_score * 100).toFixed(1)}%
+                                  <span style={styles.metaItem} title="整体匹配度评分">
+                                      整体匹配度评分：{(() => { const s = extractMatchingScore(result.llm_evaluation); return s != null ? s + '/100' : '-'; })()}
                                   </span>
                                   <span style={styles.metaSeparator}>•</span>
                                   <span style={styles.metaItem}>
@@ -1307,119 +1456,9 @@ const Screening = () => {
                       })}
                     </div>
                   );
-                }
+                      }
                 
-                // 显示新结果
-                if (results.length === 0) {
-                  return (
-                    <div style={styles.empty}>
-                      <div style={styles.emptyIcon}>🔍</div>
-                      <p style={styles.emptyText}>
-                        {error ? '未找到匹配的简历' : '选择岗位或输入描述后开始筛选'}
-                      </p>
-                    </div>
-                  );
-                }
-                
-                return (
-                  <div style={styles.resultsList}>
-                    {results.map((result, index) => {
-                      const isExpanded = expandedItems[result.resume_id] || false;
-                      return (
-                        <div 
-                          key={result.resume_id} 
-                          style={isExpanded ? styles.resultItemExpanded : styles.resultItem}
-                        >
-                          <div
-                            style={{ 
-                              ...(isExpanded ? styles.resultHeaderSticky : styles.resultHeader), 
-                              cursor: 'pointer',
-                              display: isExpanded && stickyTitle === (result.filename || '未知文件名') ? 'none' : 'flex'
-                            }}
-                            onClick={() => toggleExpand(result.resume_id, result.filename || '未知文件名')}
-                          >
-                            {/* 合并的复选框 */}
-                            <div
-                              style={{
-                                ...styles.customCheckbox,
-                                border: '2px solid #667eea',
-                                ...(selectedResults.includes(result.resume_id) ? styles.customCheckboxChecked : {})
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleSelectResult(result.resume_id, null);
-                              }}
-                            >
-                              {selectedResults.includes(result.resume_id) && '✓'}
-                            </div>
-                            
-                            <div style={styles.resultRank}>
-                              <span style={styles.rankNumber}>#{index + 1}</span>
-                            </div>
-                            <div style={styles.resultInfo}>
-                              <div style={styles.resultTitle}>
-                                {result.filename || '未知文件名'}
-                                <span style={{ marginLeft: '8px', fontSize: '12px', color: '#666' }}>
-                                  {isExpanded ? '▼ 点击收起' : '▶ 点击展开'}
-                                </span>
-                              </div>
-                              <div style={styles.resultMeta}>
-                                <span style={styles.metaItem} title="重排序相似度分数">
-                                  🎯 相似度: {(result.rerank_score * 100).toFixed(1)}%
-                                </span>
-                                <span style={styles.metaSeparator}>•</span>
-                                <span style={styles.metaItem}>
-                                  📅 {formatDate(result.created_at)}
-                                </span>
-                                <span style={styles.metaSeparator}>•</span>
-                                <span style={styles.metaItem}>
-                                  📦 {formatSize(result.file_size)}
-                                </span>
-                              </div>
-                            </div>
-                            <button
-                              style={styles.viewButton}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleViewResume(result.resume_id, result.filename);
-                              }}
-                            >
-                              查看简历
-                            </button>
-                          </div>
-                          {isExpanded && (
-                            <div style={styles.evaluationSection}>
-                              <div style={styles.stickyHeader}>
-                                <h4 style={styles.evaluationTitle}>
-                                  AI 评估
-                                  <span style={styles.scoreHint}>（整体评分见下方评估内容）</span>
-                                </h4>
-                                <button
-                                  style={styles.collapseButton}
-                                  onClick={() => toggleExpand(result.resume_id, result.filename || '未知文件名')}
-                                >
-                                  ▲ 收起
-                                </button>
-                              </div>
-                              <div style={styles.evaluationContent}>
-                                <ReactMarkdown
-                                  remarkPlugins={[remarkGfm]}
-                                  components={{
-                                    table: MarkdownTable,
-                                    th: MarkdownTh,
-                                    td: MarkdownTd,
-                                  }}
-                                >
-                                  {result.llm_evaluation}
-                                </ReactMarkdown>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
+                return renderResults();
               })()}
             </Card>
         </Col>
