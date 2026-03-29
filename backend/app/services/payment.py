@@ -115,14 +115,26 @@ class YunGouOSService:
 
             # 发起请求
             resp = httpx.post(WXPAY_CASHIER_URL, data=params_dict, timeout=10)
+            logger.info(f"YunGouOS 响应状态码: {resp.status_code}, 内容: {resp.text[:500]}")
             ret = resp.json()
+
+            # API 可能返回非 dict（如错误时返回纯文本）
+            if not isinstance(ret, dict):
+                logger.error(f"YunGouOS 返回非 JSON 对象: {resp.text[:500]}")
+                return {"success": False, "error": f"支付平台返回异常: {str(ret)[:200]}"}
 
             if ret.get("code") != 0:
                 logger.error(f"YunGouOS 创建支付失败: {ret.get('msg')}")
                 return {"success": False, "error": ret.get("msg", "支付创建失败")}
 
-            data = ret.get("data", {})
-            pay_url = data.get("pay_url", data.get("code_url", ""))
+            data = ret.get("data", "")
+            # data 可能直接是 URL 字符串，也可能是包含 pay_url 的字典
+            if isinstance(data, str) and data.startswith("http"):
+                pay_url = data
+            elif isinstance(data, dict):
+                pay_url = data.get("pay_url", data.get("code_url", ""))
+            else:
+                pay_url = ""
             if not pay_url:
                 logger.error(f"YunGouOS 返回数据中无 pay_url: {data}")
                 return {"success": False, "error": "支付平台未返回支付链接"}

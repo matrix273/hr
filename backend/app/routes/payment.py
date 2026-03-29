@@ -52,6 +52,18 @@ DEFAULT_PLANS = [
         "ai_screening": True,
         "priority_support": True,
     },
+    {
+        "id": "test",
+        "name": "测试套餐",
+        "description": "仅管理员可见，用于测试支付流程",
+        "price": 0.01,
+        "duration_days": 1,
+        "max_resumes": 10,
+        "max_jobs": 3,
+        "ai_screening": True,
+        "priority_support": False,
+        "is_test": True,
+    },
 ]
 
 
@@ -111,11 +123,28 @@ async def get_current_user_object(
 
 @router.get("/plans", response_model=List[dict])
 async def get_subscription_plans(
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
-    """获取订阅套餐列表"""
+    """获取订阅套餐列表（测试套餐仅管理员可见）"""
     result = await db.execute(select(SubscriptionPlan).where(SubscriptionPlan.is_active == True))
     plans = result.scalars().all()
+
+    # 非管理员过滤掉测试套餐
+    is_admin = False
+    try:
+        token = request.headers.get("authorization", "").replace("Bearer ", "")
+        if token:
+            from ..auth.jwt import verify_token
+            payload = verify_token(token)
+            permissions = payload.get("permissions", [])
+            is_admin = "system:admin" in permissions
+    except Exception:
+        pass
+
+    if not is_admin:
+        plans = [p for p in plans if not p.is_test]
+
     return [plan.to_dict() for plan in plans]
 
 

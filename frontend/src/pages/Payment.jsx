@@ -4,7 +4,7 @@ import {
     InputNumber, Tooltip, Divider, Modal
 } from 'antd';
 import {
-    CheckCircleOutlined, LoadingOutlined,
+    CheckCircleOutlined, LoadingOutlined, QrcodeOutlined,
     ClockCircleOutlined, AppstoreOutlined, FileTextOutlined,
     PlusCircleOutlined, AlipayCircleOutlined,
     WechatOutlined, CreditCardOutlined, CrownOutlined, CloseCircleOutlined
@@ -421,14 +421,16 @@ const PaymentPage = () => {
                                             {n} 个月
                                         </Button>
                                     ))}
-                                    <InputNumber
-                                        min={1}
-                                        max={12}
-                                        value={quantity}
-                                        onChange={(val) => val && setQuantity(val)}
-                                        style={{ width: 80 }}
-                                        addonAfter="月"
-                                    />
+                                    <Space.Compact>
+                                        <InputNumber
+                                            min={1}
+                                            max={12}
+                                            value={quantity}
+                                            onChange={(val) => val && setQuantity(val)}
+                                            style={{ width: 80 }}
+                                        />
+                                        <Button disabled>月</Button>
+                                    </Space.Compact>
                                 </Space>
                                 <div style={{ marginTop: 8 }}>
                                     <Text type="secondary">
@@ -480,7 +482,7 @@ const PaymentPage = () => {
                                                     transition: 'all 0.3s',
                                                     textAlign: 'center',
                                                 }}
-                                                bodyStyle={{ padding: '16px 12px' }}
+                                                styles={{ body: { padding: '16px 12px' } }}
                                             >
                                                 <div style={{ marginBottom: 8 }}>
                                                     {icon}

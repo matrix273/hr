@@ -56,6 +56,7 @@ class SubscriptionPlan(Base):
     max_jobs = Column(Integer, default=10, comment="最大岗位数量")
     ai_screening = Column(Boolean, default=True, comment="是否包含AI筛选")
     priority_support = Column(Boolean, default=False, comment="是否优先支持")
+    is_test = Column(Boolean, default=False, comment="是否为测试套餐（仅管理员可见）")
     is_active = Column(Boolean, default=True, comment="是否激活")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
