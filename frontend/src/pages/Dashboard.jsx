@@ -9,6 +9,7 @@ import Screening from './Screening';
 import UserManagement from './UserManagement';
 import CompanyManagement from './CompanyManagement';
 import Payment from './Payment';
+import PlanManagement from '../components/PlanManagement';
 import AuditLog from './AuditLog';
 import MessageManagement from './MessageManagement';
 import Sidebar from '../components/Sidebar';
@@ -162,6 +163,10 @@ const Dashboard = () => {
 
           {activeTab === 'payment' && (
             <Payment />
+          )}
+
+          {activeTab === 'plan-manage' && (
+            <PlanManagement />
           )}
 
           {activeTab === 'contacts' && (

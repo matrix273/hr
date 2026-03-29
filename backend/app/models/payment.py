@@ -16,7 +16,7 @@ class PaymentOrder(Base):
     amount = Column(Float, nullable=False, comment="支付金额")
     currency = Column(String(10), default="CNY", comment="货币类型")
     payment_method = Column(String(50), nullable=False, comment="支付方式: wechat, alipay, stripe")
-    product_type = Column(String(50), nullable=False, comment="产品类型: subscription-订阅, credit-余额充值")
+    product_type = Column(String(50), nullable=False, comment="产品类型: subscription-订阅, addon-加量包")
     product_id = Column(String(50), comment="产品ID")
     product_name = Column(String(255), nullable=False, comment="产品名称")
     status = Column(String(20), default="pending", comment="订单状态: pending-待支付, paid-已支付, failed-支付失败, cancelled-已取消")
@@ -58,11 +58,14 @@ class SubscriptionPlan(Base):
     priority_support = Column(Boolean, default=False, comment="是否优先支持")
     is_test = Column(Boolean, default=False, comment="是否为测试套餐（仅管理员可见）")
     is_active = Column(Boolean, default=True, comment="是否激活")
+    plan_type = Column(String(20), default="subscription", comment="套餐类型: subscription-订阅, addon-加量包")
+    addon_resumes = Column(Integer, default=0, comment="加量包额外增加的筛选简历数")
+    addon_jobs = Column(Integer, default=0, comment="加量包额外增加的岗位数")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def to_dict(self):
         """转换为字典"""
-        return {
+        result = {
             "id": self.id,
             "name": self.name,
             "description": self.description,
@@ -73,5 +76,26 @@ class SubscriptionPlan(Base):
             "ai_screening": self.ai_screening,
             "priority_support": self.priority_support,
             "is_active": self.is_active,
+            "plan_type": self.plan_type,
             "created_at": self.created_at.isoformat() if self.created_at else None
         }
+        # 加量包特有字段
+        if self.plan_type == "addon":
+            result["addon_resumes"] = self.addon_resumes
+            result["addon_jobs"] = self.addon_jobs
+        return result
+
+
+class QuotaAddon(Base):
+    """加量包购买记录模型"""
+    __tablename__ = "quota_addons"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    order_id = Column(String(50), unique=True, nullable=False, comment="关联的支付订单ID")
+    user_id = Column(String(50), nullable=False, index=True, comment="购买用户ID")
+    company_id = Column(String(50), nullable=True, index=True, comment="公司ID（有公司时记录）")
+    addon_resumes = Column(Integer, default=0, comment="额外增加的筛选简历数")
+    addon_jobs = Column(Integer, default=0, comment="额外增加的岗位数")
+    # 已废弃：加量包改为永久有效，不再按月过滤
+    month_key = Column(String(7), nullable=True, index=True, comment="废弃字段")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

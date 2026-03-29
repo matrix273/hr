@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
     Card, Button, Badge, Space, Spin, Empty, Typography, Tag,
-    InputNumber, Tooltip, Divider, Modal, message
+    InputNumber, Tooltip, Divider, Modal, message, Alert
 } from 'antd';
 import {
     CheckCircleOutlined, LoadingOutlined, QrcodeOutlined,
     ClockCircleOutlined, AppstoreOutlined, FileTextOutlined,
     PlusCircleOutlined, AlipayCircleOutlined,
-    WechatOutlined, CreditCardOutlined, CrownOutlined, CloseCircleOutlined
+    WechatOutlined, CreditCardOutlined, CrownOutlined,
+    CloseCircleOutlined, QuestionCircleOutlined, SettingOutlined
 } from '@ant-design/icons';
 import { getApiBaseUrl } from '../utils/api';
+import { shouldShowElement, Permission } from '../utils/permissions';
+import PlanManagement from '../components/PlanManagement';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -41,6 +44,17 @@ const PaymentPage = () => {
     const [orders, setOrders] = useState([]);
     const [activeTab, setActiveTab] = useState('plans');
     const pollTimerRef = useRef(null);
+    const isAdmin = shouldShowElement(Permission.SYSTEM_ADMIN);
+
+    // 区分订阅套餐和加量包
+    const subscriptionPlans = useMemo(
+        () => plans.filter(p => p.plan_type !== 'addon'),
+        [plans]
+    );
+    const addonPlans = useMemo(
+        () => plans.filter(p => p.plan_type === 'addon'),
+        [plans]
+    );
 
     const API_BASE = getApiBaseUrl();
     const TOKEN = localStorage.getItem('token');
@@ -111,7 +125,9 @@ const PaymentPage = () => {
 
         try {
             setPaymentStatus('processing');
-            const url = `${API_BASE}/payment/create-qrcode?plan_id=${selectedPlan.id}&payment_method=${selectedMethod.code}&quantity=${quantity}`;
+            // 加量包固定数量为1
+            const qty = selectedPlan.plan_type === 'addon' ? 1 : quantity;
+            const url = `${API_BASE}/payment/create-qrcode?plan_id=${selectedPlan.id}&payment_method=${selectedMethod.code}&quantity=${qty}`;
             const response = await fetch(url, { method: 'POST', headers });
             const data = await response.json();
 
@@ -271,14 +287,24 @@ const PaymentPage = () => {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <FileTextOutlined style={{ color: '#4f46e5' }} />
                                     <Text type="secondary">
-                                        筛选简历 <Text strong>{userInfo?.usage?.screening_used ?? 0}</Text> / <Text strong>{currentPlanDetail.max_resumes}</Text> 份/月
+                                        筛选简历 <Text strong>{userInfo?.usage?.screening_used ?? 0}</Text> / <Text strong>{currentPlanDetail.max_resumes + (userInfo?.usage?.addon_resumes ?? 0)}</Text> 份/月
+                                        {userInfo?.usage?.addon_resumes > 0 && (
+                                            <Tag color="orange" style={{ marginLeft: 4, fontSize: 11 }}>
+                                                含加量包 +{userInfo.usage.addon_resumes}
+                                            </Tag>
+                                        )}
                                         {userInfo?.is_company_plan && '（公司合计）'}
                                     </Text>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <PlusCircleOutlined style={{ color: '#4f46e5' }} />
                                     <Text type="secondary">
-                                        新增岗位 <Text strong>{userInfo?.usage?.jobs_used ?? 0}</Text> / <Text strong>{currentPlanDetail.max_jobs}</Text> 个/月
+                                        新增岗位 <Text strong>{userInfo?.usage?.jobs_used ?? 0}</Text> / <Text strong>{currentPlanDetail.max_jobs + (userInfo?.usage?.addon_jobs ?? 0)}</Text> 个/月
+                                        {userInfo?.usage?.addon_jobs > 0 && (
+                                            <Tag color="orange" style={{ marginLeft: 4, fontSize: 11 }}>
+                                                含加量包 +{userInfo.usage.addon_jobs}
+                                            </Tag>
+                                        )}
                                         {userInfo?.is_company_plan && '（公司合计）'}
                                     </Text>
                                 </div>
@@ -301,6 +327,35 @@ const PaymentPage = () => {
                 </div>
             </Card>
 
+            {/* 常见问题 */}
+            <Alert
+                type="info"
+                showIcon
+                icon={<QuestionCircleOutlined />}
+                style={{ marginBottom: '24px', borderRadius: 8 }}
+                message={
+                    <div style={{ fontSize: 13 }}>
+                        <div style={{ marginBottom: 6, fontWeight: 600, fontSize: 14 }}>常见问题</div>
+                        <div style={{ marginBottom: 4 }}>
+                            <Text strong>配额消费顺序：</Text>
+                            <Text type="secondary">优先消耗当前套餐配额，套餐用完后自动消耗加量包配额</Text>
+                        </div>
+                        <div style={{ marginBottom: 4 }}>
+                            <Text strong>加量包有效期：</Text>
+                            <Text type="secondary">一次性购买，永久有效，用完为止，不会过期</Text>
+                        </div>
+                        <div style={{ marginBottom: 4 }}>
+                            <Text strong>配额重置：</Text>
+                            <Text type="secondary">套餐配额每月1日自动重置；加量包配额不重置，累计叠加</Text>
+                        </div>
+                        <div>
+                            <Text strong>公司共享：</Text>
+                            <Text type="secondary">加入公司后，配额由公司所有成员共享</Text>
+                        </div>
+                    </div>
+                }
+            />
+
             <Space style={{ marginBottom: '24px' }}>
                 <Button
                     type={activeTab === 'plans' ? 'primary' : 'default'}
@@ -316,9 +371,20 @@ const PaymentPage = () => {
                 >
                     订单记录
                 </Button>
+                {isAdmin && (
+                    <Button
+                        type={activeTab === 'manage' ? 'primary' : 'default'}
+                        onClick={() => setActiveTab('manage')}
+                        icon={<SettingOutlined />}
+                    >
+                        套餐管理
+                    </Button>
+                )}
             </Space>
 
-            {activeTab === 'plans' ? (
+            {activeTab === 'manage' && isAdmin ? (
+                <PlanManagement />
+            ) : activeTab === 'plans' ? (
                 <>
                     {/* 套餐卡片 */}
                     <div style={{
@@ -326,7 +392,7 @@ const PaymentPage = () => {
                         gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
                         gap: '16px', marginBottom: '24px'
                     }}>
-                        {plans.map((plan) => {
+                        {subscriptionPlans.map((plan) => {
                             const isCurrent = userInfo?.subscription_plan === plan.id;
                             const isSelected = selectedPlan?.id === plan.id;
                             return (
@@ -399,14 +465,74 @@ const PaymentPage = () => {
                         })}
                     </div>
 
+                    {/* 加量包区域 */}
+                    {addonPlans.length > 0 && (
+                        <div style={{ marginBottom: '24px' }}>
+                            <div style={{
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                marginBottom: '16px'
+                            }}>
+                                <Title level={4} style={{ margin: 0 }}>
+                                    <PlusCircleOutlined style={{ color: '#fa8c16', marginRight: 8 }} />
+                                    配额不够？购买加量包
+                                </Title>
+                                <Tooltip title="一次性购买，永久有效，用完为止">
+                                    <Tag color="orange">一次性</Tag>
+                                </Tooltip>
+                            </div>
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                                gap: '12px'
+                            }}>
+                                {addonPlans.map((addon) => {
+                                    const isSelected = selectedPlan?.id === addon.id;
+                                    return (
+                                        <Card
+                                            key={addon.id}
+                                            hoverable
+                                            size="small"
+                                            style={{
+                                                cursor: 'pointer',
+                                                border: isSelected ? '2px solid #fa8c16' : '1px solid #f0f0f0',
+                                                borderRadius: 10,
+                                                background: isSelected ? '#fff7e6' : '#fff',
+                                            }}
+                                            onClick={() => {
+                                                setSelectedPlan(addon);
+                                                setQuantity(1);
+                                                setTimeout(() => {
+                                                    document.getElementById('payment-section')
+                                                        ?.scrollIntoView({ behavior: 'smooth' });
+                                                }, 100);
+                                            }}
+                                        >
+                                            <div style={{ fontWeight: 'bold', marginBottom: 4 }}>{addon.name}</div>
+                                            <div style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>
+                                                {addon.description}
+                                            </div>
+                                            <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#fa8c16' }}>
+                                                ¥{addon.price}
+                                                <span style={{ fontSize: '12px', fontWeight: 'normal', color: '#999', marginLeft: 4 }}>
+                                                    一次性
+                                                </span>
+                                            </div>
+                                        </Card>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
                     {/* 数量选择 + 支付方式 + 支付按钮 */}
                     {selectedPlan && selectedPlan.price > 0 && (
                         <Card id="payment-section" style={{ marginBottom: '24px' }}>
                             <Title level={4} style={{ marginBottom: '20px' }}>
-                                购买方案
+                                {selectedPlan.plan_type === 'addon' ? '购买加量包' : '购买方案'}
                             </Title>
 
-                            {/* 订阅时长 */}
+                            {/* 订阅时长（仅订阅套餐显示） */}
+                            {selectedPlan.plan_type !== 'addon' && (
                             <div style={{ marginBottom: 24 }}>
                                 <Text strong style={{ display: 'block', marginBottom: 12 }}>
                                     订阅时长
@@ -445,6 +571,7 @@ const PaymentPage = () => {
                                     </Text>
                                 </div>
                             </div>
+                            )}
 
                             <Divider style={{ margin: '24px 0' }} />
 
@@ -544,14 +671,17 @@ const PaymentPage = () => {
                                 <div>
                                     <Space size="large">
                                         <span>
-                                            <Text type="secondary">{selectedPlan.name}</Text>
-                                            {' x '}{quantity} 个月
+                                            <Text type="secondary">
+                                                {selectedPlan.plan_type === 'addon'
+                                                    ? selectedPlan.name
+                                                    : `${selectedPlan.name} x ${quantity} 个月`}
+                                            </Text>
                                         </span>
                                         <span style={{ fontSize: 24, fontWeight: 'bold', color: '#f5222d' }}>
                                             ¥{totalPrice}
                                         </span>
                                     </Space>
-                                    {discountHint && (
+                                    {discountHint && selectedPlan.plan_type !== 'addon' && (
                                         <Tooltip title={`购买 ${discountHint.months} 个月，平均每月 ¥${(totalPrice / quantity).toFixed(0)}`}>
                                             <Tag color="orange" style={{ marginLeft: 8 }}>
                                                 {discountHint.label}
@@ -661,7 +791,9 @@ const PaymentPage = () => {
                                 支付成功！
                             </Title>
                             <Paragraph type="secondary">
-                                您已成功订阅 {selectedPlan?.name} x{quantity} 个月
+                                {selectedPlan?.plan_type === 'addon'
+                                    ? `您已成功购买 ${selectedPlan?.name}，配额即刻生效`
+                                    : `您已成功订阅 ${selectedPlan?.name} x${quantity} 个月`}
                             </Paragraph>
                             <Button type="primary" onClick={resetPayment} style={{ marginTop: 16 }}>
                                 继续购买

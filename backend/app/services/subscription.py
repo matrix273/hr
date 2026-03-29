@@ -11,7 +11,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.user import User, Company, Job, ScreeningResult
-from ..models.payment import SubscriptionPlan
+from ..models.payment import SubscriptionPlan, QuotaAddon
 from ..utils.logger import logger
 
 
@@ -26,6 +26,33 @@ def _get_month_start() -> datetime:
     """获取当前月份起始时间（UTC）"""
     now = datetime.now(timezone.utc)
     return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+async def sum_addons(
+    target_id: str, is_company: bool, db: AsyncSession
+) -> dict[str, int]:
+    """统计加量包总量（永久有效，不按月过滤）
+
+    Args:
+        target_id: 公司ID或用户ID
+        is_company: 是否按公司维度
+        db: 数据库会话
+
+    Returns:
+        {"resumes": 额外筛选数, "jobs": 额外岗位数}
+    """
+    if is_company:
+        condition = QuotaAddon.company_id == target_id
+    else:
+        condition = QuotaAddon.user_id == target_id
+    result = await db.execute(
+        select(
+            func.coalesce(func.sum(QuotaAddon.addon_resumes), 0),
+            func.coalesce(func.sum(QuotaAddon.addon_jobs), 0),
+        ).where(condition)
+    )
+    row = result.one()
+    return {"resumes": int(row[0]), "jobs": int(row[1])}
 
 
 async def _get_company_user_ids(company_id: str, db: AsyncSession) -> list[str]:
@@ -62,6 +89,22 @@ async def count_monthly_jobs(user_ids: list[str], db: AsyncSession) -> int:
         )
     )
     return result.scalar() or 0
+
+
+async def sum_monthly_addons(
+    target_id: str, is_company: bool, db: AsyncSession
+) -> dict[str, int]:
+    """统计加量包总量（永久有效，兼容旧接口名）
+
+    Args:
+        target_id: 公司ID或用户ID
+        is_company: 是否按公司维度
+        db: 数据库会话
+
+    Returns:
+        {"resumes": 额外筛选数, "jobs": 额外岗位数}
+    """
+    return await sum_addons(target_id, is_company, db)
 
 
 async def _get_effective_plan(user: User, db: AsyncSession) -> tuple[str | None, dict]:
@@ -151,9 +194,18 @@ async def get_user_usage(user: User, db: AsyncSession) -> dict:
 
     screening_used = await count_monthly_screening(user_ids, db)
     jobs_used = await count_monthly_jobs(user_ids, db)
+
+    # 加量包总量（永久有效）
+    if user.company_id:
+        addon = await sum_addons(user.company_id, is_company=True, db=db)
+    else:
+        addon = await sum_addons(user.id, is_company=False, db=db)
+
     return {
         "screening_used": screening_used,
         "jobs_used": jobs_used,
+        "addon_resumes": addon["resumes"],
+        "addon_jobs": addon["jobs"],
     }
 
 
@@ -200,8 +252,9 @@ async def check_screening_quota(
 ) -> tuple[bool, str]:
     """检查筛选配额
 
-    有公司：聚合公司所有成员的使用量，与公司套餐配额比较。
-    无公司：个人使用量与个人套餐配额比较。
+    消费顺序：当前套餐配额优先，加量包配额在套餐用完后消耗。
+    有公司：聚合公司所有成员的使用量。
+    无公司：个人使用量。
 
     Returns:
         (是否允许, 错误信息) 允许时错误信息为空字符串
@@ -220,16 +273,34 @@ async def check_screening_quota(
         user_ids = [user.id]
 
     screening_used = await count_monthly_screening(user_ids, db)
-    remaining = plan["max_resumes"] - screening_used
 
-    if remaining <= 0:
-        scope = "公司" if user.company_id else "本月"
-        return False, (
-            f"{scope}筛选配额已用完（{plan['max_resumes']}份/月），"
-            f"请升级套餐"
-        )
+    # 获取加量包总量
+    if user.company_id:
+        addon = await sum_addons(user.company_id, is_company=True, db=db)
+    else:
+        addon = await sum_addons(user.id, is_company=False, db=db)
 
-    return True, ""
+    plan_quota = plan["max_resumes"]
+    addon_quota = addon["resumes"]
+
+    # 消费顺序：套餐配额优先，加量包在套餐用完后消耗
+    if screening_used < plan_quota:
+        # 套餐配额充足
+        return True, ""
+
+    # 套餐已用完，检查加量包
+    addon_used = screening_used - plan_quota
+    if addon_used < addon_quota:
+        # 加量包配额充足
+        return True, ""
+
+    # 全部用完
+    scope = "公司" if user.company_id else "本月"
+    addon_hint = f"（含加量包 +{addon_quota}）" if addon_quota > 0 else ""
+    return False, (
+        f"{scope}筛选配额已用完（套餐 {plan_quota} 份 + 加量包 {addon_quota} 份{addon_hint}），"
+        f"请升级套餐或购买加量包"
+    )
 
 
 async def check_job_quota(
@@ -237,8 +308,9 @@ async def check_job_quota(
 ) -> tuple[bool, str]:
     """检查创建岗位配额
 
-    有公司：聚合公司所有成员的使用量，与公司套餐配额比较。
-    无公司：个人使用量与个人套餐配额比较。
+    消费顺序：当前套餐配额优先，加量包配额在套餐用完后消耗。
+    有公司：聚合公司所有成员的使用量。
+    无公司：个人使用量。
 
     Returns:
         (是否允许, 错误信息)
@@ -254,13 +326,27 @@ async def check_job_quota(
         user_ids = [user.id]
 
     jobs_used = await count_monthly_jobs(user_ids, db)
-    remaining = plan["max_jobs"] - jobs_used
 
-    if remaining <= 0:
-        scope = "公司" if user.company_id else "本月"
-        return False, (
-            f"{scope}新增岗位配额已用完（{plan['max_jobs']}个/月），"
-            f"请升级套餐"
-        )
+    # 获取加量包总量
+    if user.company_id:
+        addon = await sum_addons(user.company_id, is_company=True, db=db)
+    else:
+        addon = await sum_addons(user.id, is_company=False, db=db)
 
-    return True, ""
+    plan_quota = plan["max_jobs"]
+    addon_quota = addon["jobs"]
+
+    # 消费顺序：套餐配额优先，加量包在套餐用完后消耗
+    if jobs_used < plan_quota:
+        return True, ""
+
+    addon_used = jobs_used - plan_quota
+    if addon_used < addon_quota:
+        return True, ""
+
+    scope = "公司" if user.company_id else "本月"
+    addon_hint = f"（含加量包 +{addon_quota}）" if addon_quota > 0 else ""
+    return False, (
+        f"{scope}新增岗位配额已用完（套餐 {plan_quota} 个 + 加量包 {addon_quota} 个{addon_hint}），"
+        f"请升级套餐或购买加量包"
+    )
