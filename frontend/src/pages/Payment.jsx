@@ -165,20 +165,23 @@ const PaymentPage = () => {
     const verifyPayment = async () => {
         if (!orderId) return;
         try {
-            const response = await fetch(`${API_BASE}/payment/verify/${orderId}`, {
+            // 先尝试主动确认支付（直接标记为已支付）
+            const confirmResp = await fetch(`${API_BASE}/payment/confirm/${orderId}`, {
                 method: 'POST', headers
             });
-            const data = await response.json();
-            if (data.payment_status?.paid) {
+            const confirmData = await confirmResp.json();
+
+            if (confirmResp.ok) {
                 setPaymentStatus('success');
                 await fetchUserInfo();
                 await fetchOrders();
-                alert('支付验证成功！');
+                alert('支付确认成功！');
             } else {
-                alert('支付未完成，请继续扫码支付');
+                alert(confirmData.detail || '支付确认失败');
             }
         } catch (error) {
-            console.error('验证支付失败:', error);
+            console.error('确认支付失败:', error);
+            alert('操作失败，请重试');
         }
     };
 
