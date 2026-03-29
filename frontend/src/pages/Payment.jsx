@@ -7,7 +7,7 @@ import {
     CheckCircleOutlined, LoadingOutlined,
     ClockCircleOutlined, AppstoreOutlined, FileTextOutlined,
     PlusCircleOutlined, AlipayCircleOutlined,
-    WechatOutlined, CrownOutlined, CloseCircleOutlined
+    WechatOutlined, CreditCardOutlined, CrownOutlined, CloseCircleOutlined
 } from '@ant-design/icons';
 import { getApiBaseUrl } from '../utils/api';
 
