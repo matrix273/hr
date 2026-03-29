@@ -1,7 +1,8 @@
-"""支付路由 - 个人开发者简化版"""
+"""支付路由 - 基于 YunGouOS 微信收银台支付"""
 
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
@@ -10,7 +11,7 @@ from ..auth.jwt import get_current_user
 from ..database import AsyncSessionLocal, get_db
 from ..models.user import User, Company
 from ..models.payment import PaymentOrder, SubscriptionPlan
-from ..services.payment import SimplePaymentService
+from ..services.payment import YunGouOSService
 from ..services.subscription import get_user_plan, get_subscription_info
 from ..utils.logger import logger
 
@@ -121,7 +122,7 @@ async def get_subscription_plans(
 @router.get("/methods")
 async def get_payment_methods():
     """获取可用的支付方式"""
-    payment_service = SimplePaymentService()
+    payment_service = YunGouOSService()
     return payment_service.get_available_payment_methods()
 
 
@@ -195,13 +196,12 @@ async def create_payment_qrcode(
     await db.commit()
     await db.refresh(order)
     
-    # 生成支付二维码
-    payment_service = SimplePaymentService()
-    result = payment_service.create_payment_qrcode(
+    # 调用 YunGouOS 创建收银台支付
+    payment_service = YunGouOSService()
+    result = payment_service.create_cashier_pay(
         order_id=order.order_id,
-        amount=total_amount,
-        description=f"购买套餐: {plan.name} x{quantity}个月",
-        payment_method=payment_method
+        total_fee=total_amount,
+        body=f"购买套餐: {plan.name} x{quantity}个月"
     )
     
     if not result.get("success"):
@@ -209,8 +209,7 @@ async def create_payment_qrcode(
     
     return {
         "order_id": order.order_id,
-        "qrcode_data": result["qrcode_data"],
-        "payment_url": result["payment_url"],
+        "pay_url": result["pay_url"],
         "plan": plan.to_dict()
     }
 
@@ -246,6 +245,100 @@ async def verify_payment(
     }
 
 
+@router.post("/notify")
+async def payment_notify(request: Request):
+    """YunGouOS 支付回调通知（无需鉴权，由支付平台调用）"""
+    try:
+        form_data = await request.form()
+        post_data = dict(form_data)
+        logger.info(f"收到 YunGouOS 支付回调: {post_data}")
+    except Exception as e:
+        logger.error(f"解析回调数据失败: {e}")
+        return PlainTextResponse("FAIL", status_code=200)
+
+    # 验证签名
+    payment_service = YunGouOSService()
+    result = payment_service.verify_notify(post_data)
+
+    if not result.get("success"):
+        logger.warning(f"回调验证失败: {result.get('error')}")
+        return PlainTextResponse("FAIL", status_code=200)
+
+    out_trade_no = result["out_trade_no"]
+    async with AsyncSessionLocal() as db:
+        order_result = await db.execute(
+            select(PaymentOrder).where(PaymentOrder.order_id == out_trade_no)
+        )
+        order = order_result.scalar_one_or_none()
+
+        if not order:
+            logger.warning(f"回调对应订单不存在: {out_trade_no}")
+            return PlainTextResponse("FAIL", status_code=200)
+
+        if order.status == "paid":
+            logger.info(f"订单已处理过, 跳过: {out_trade_no}")
+            return PlainTextResponse("SUCCESS", status_code=200)
+
+        # 保存支付平台数据
+        order.payment_data = {"pay_no": result.get("pay_no"), "raw": post_data}
+
+        await _activate_subscription(order, db)
+        logger.info(f"支付回调处理成功, 订单: {out_trade_no}, 金额: {result.get('money')}")
+
+    return PlainTextResponse("SUCCESS", status_code=200)
+
+
+async def _activate_subscription(order: PaymentOrder, db: AsyncSession):
+    """
+    激活订阅：将订单标记为已支付并更新订阅信息
+
+    Args:
+        order: 支付订单对象
+        db: 数据库会话
+    """
+    order.status = "paid"
+    order.paid_at = datetime.now(timezone.utc)
+
+    # 根据套餐有效期设置到期时间
+    plan_result = await db.execute(
+        select(SubscriptionPlan).where(SubscriptionPlan.id == order.product_id)
+    )
+    plan = plan_result.scalar_one_or_none()
+    expires = None
+    if plan and plan.duration_days > 0:
+        expires = datetime.now(timezone.utc) + timedelta(days=plan.duration_days)
+
+    # 查询订单所属用户
+    user_result = await db.execute(select(User).where(User.id == order.user_id))
+    user = user_result.scalar_one_or_none()
+    if not user:
+        logger.error(f"订单用户不存在: {order.user_id}")
+        await db.commit()
+        return
+
+    # 如果已有付费订阅，在原到期时间基础上续期
+    if user.company_id:
+        company_result = await db.execute(
+            select(Company).where(Company.id == user.company_id)
+        )
+        company = company_result.scalar_one_or_none()
+        if company:
+            base = company.subscription_expires or datetime.now(timezone.utc)
+            if base < datetime.now(timezone.utc):
+                base = datetime.now(timezone.utc)
+            company.subscription_plan = order.product_id
+            company.subscription_expires = base + timedelta(days=plan.duration_days) if plan else None
+    else:
+        base = user.subscription_expires or datetime.now(timezone.utc)
+        if base < datetime.now(timezone.utc):
+            base = datetime.now(timezone.utc)
+        user.subscription_plan = order.product_id
+        user.subscription_expires = base + timedelta(days=plan.duration_days) if plan else None
+
+    await db.commit()
+    await db.refresh(order)
+
+
 @router.post("/confirm/{order_id}")
 async def confirm_payment(
     order_id: str,
@@ -265,33 +358,7 @@ async def confirm_payment(
     if order.status == "paid":
         return {"order": order.to_dict(), "message": "订单已支付"}
 
-    order.status = "paid"
-    order.paid_at = datetime.now(timezone.utc)
-
-    # 根据套餐有效期设置到期时间
-    plan_result = await db.execute(
-        select(SubscriptionPlan).where(SubscriptionPlan.id == order.product_id)
-    )
-    plan = plan_result.scalar_one_or_none()
-    expires = None
-    if plan and plan.duration_days > 0:
-        expires = datetime.now(timezone.utc) + timedelta(days=plan.duration_days)
-
-    # 更新订阅：有公司则更新公司订阅
-    if current_user.company_id:
-        company_result = await db.execute(
-            select(Company).where(Company.id == current_user.company_id)
-        )
-        company = company_result.scalar_one_or_none()
-        if company:
-            company.subscription_plan = order.product_id
-            company.subscription_expires = expires
-    else:
-        current_user.subscription_plan = order.product_id
-        current_user.subscription_expires = expires
-
-    await db.commit()
-    await db.refresh(order)
+    await _activate_subscription(order, db)
 
     return {"order": order.to_dict(), "message": "支付确认成功"}
 

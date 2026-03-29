@@ -4,10 +4,10 @@ import {
     InputNumber, Tooltip, Divider, Modal
 } from 'antd';
 import {
-    CheckCircleOutlined, LoadingOutlined, QrcodeOutlined,
+    CheckCircleOutlined, LoadingOutlined,
     ClockCircleOutlined, AppstoreOutlined, FileTextOutlined,
-    PlusCircleOutlined, MinusCircleOutlined, AlipayCircleOutlined,
-    WechatOutlined, CreditCardOutlined, CrownOutlined, CloseCircleOutlined
+    PlusCircleOutlined, AlipayCircleOutlined,
+    WechatOutlined, CrownOutlined, CloseCircleOutlined
 } from '@ant-design/icons';
 import { getApiBaseUrl } from '../utils/api';
 
@@ -35,7 +35,6 @@ const PaymentPage = () => {
     const [selectedPlan, setSelectedPlan] = useState(null);
     const [selectedMethod, setSelectedMethod] = useState(null);
     const [quantity, setQuantity] = useState(1);
-    const [qrcodeData, setQrcodeData] = useState(null);
     const [orderId, setOrderId] = useState(null);
     const [paymentStatus, setPaymentStatus] = useState('idle');
     const [userInfo, setUserInfo] = useState(null);
@@ -117,15 +116,17 @@ const PaymentPage = () => {
             const data = await response.json();
 
             if (response.ok) {
-                setQrcodeData(data.qrcode_data);
                 setOrderId(data.order_id);
+                // 跳转到 YunGouOS 收银台支付页面
+                window.open(data.pay_url, '_blank');
                 startPolling(data.order_id);
             } else {
                 setPaymentStatus('failed');
+                setPaymentStatus('idle');
                 alert(data.detail || '创建支付失败');
             }
         } catch (error) {
-            setPaymentStatus('failed');
+            setPaymentStatus('idle');
             console.error('创建支付失败:', error);
             alert('创建支付失败');
         }
@@ -157,7 +158,6 @@ const PaymentPage = () => {
             clearInterval(pollTimerRef.current);
             pollTimerRef.current = null;
         }
-        setQrcodeData(null);
         setOrderId(null);
         setPaymentStatus('idle');
     };
@@ -575,85 +575,67 @@ const PaymentPage = () => {
                         </Card>
                     )}
 
-                    {/* 扫码支付弹窗 */}
+                    {/* 等待支付弹窗 */}
                     <Modal
-                        open={paymentStatus === 'processing' && !!qrcodeData}
+                        open={paymentStatus === 'processing' && !!orderId}
                         footer={null}
-                        closable={false}
+                        closable={true}
+                        onCancel={cancelPayment}
                         width={420}
                         centered
                         destroyOnHidden
                     >
-                        <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                        <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                            <WechatOutlined style={{ fontSize: 48, color: '#07c160', display: 'block', marginBottom: 16 }} />
                             <Title level={4} style={{ marginBottom: 8 }}>
-                                扫码支付
+                                等待支付
                             </Title>
                             <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
-                                请使用 {selectedMethod?.name} 扫描二维码
+                                已在新窗口打开收银台，请完成支付
                             </Text>
                             <Text strong style={{ display: 'block', marginBottom: 20, fontSize: 18, color: '#f5222d' }}>
                                 ¥{totalPrice}
                             </Text>
+                            <Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 20 }}>
+                                订单号: {orderId}
+                            </Text>
                             <div style={{
-                                display: 'inline-block', padding: 12,
-                                background: selectedMethod?.code === 'wechat_qrcode'
-                                    ? '#f6ffed'
-                                    : selectedMethod?.code === 'alipay_qrcode'
-                                        ? '#e6f4ff'
-                                        : '#fff',
-                                borderRadius: 8,
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                                marginBottom: 16
+                                display: 'flex',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                gap: 16,
                             }}>
-                                <img
-                                    src={qrcodeData}
-                                    alt="支付二维码"
-                                    style={{ width: '220px', height: '220px', display: 'block' }}
-                                />
-                            </div>
-                            <div>
-                                <Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 12 }}>
-                                    订单号: {orderId}
-                                </Text>
-                                <div style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    marginTop: 16,
-                                    padding: '0 8px'
-                                }}>
-                                    <Button
-                                        style={{
-                                            background: '#fff1f0',
-                                            color: '#ff4d4f',
-                                            border: '1px solid #ffa39e',
-                                            borderRadius: 8,
-                                            height: 40,
-                                            paddingInline: 24
-                                        }}
-                                        icon={<CloseCircleOutlined />}
-                                        onClick={cancelPayment}
-                                    >
-                                        取消支付
-                                    </Button>
-                                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                                        <Spin indicator={<LoadingOutlined style={{ fontSize: 14 }} spin />} />
-                                        <span style={{ marginLeft: 6, color: '#1890ff', fontSize: 13 }}>
-                                            等待支付中
-                                        </span>
-                                    </div>
-                                    <Button
-                                        type="primary"
-                                        style={{
-                                            borderRadius: 8,
-                                            height: 40,
-                                            paddingInline: 24
-                                        }}
-                                        onClick={verifyPayment}
-                                    >
-                                        已完成支付
-                                    </Button>
+                                <Button
+                                    style={{
+                                        background: '#fff1f0',
+                                        color: '#ff4d4f',
+                                        border: '1px solid #ffa39e',
+                                        borderRadius: 8,
+                                        height: 40,
+                                        paddingInline: 24
+                                    }}
+                                    icon={<CloseCircleOutlined />}
+                                    onClick={cancelPayment}
+                                >
+                                    取消支付
+                                </Button>
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                    <Spin indicator={<LoadingOutlined style={{ fontSize: 14 }} spin />} />
+                                    <span style={{ marginLeft: 6, color: '#1890ff', fontSize: 13 }}>
+                                        等待支付中
+                                    </span>
                                 </div>
+                                <Button
+                                    type="primary"
+                                    style={{
+                                        borderRadius: 8,
+                                        height: 40,
+                                        paddingInline: 24
+                                    }}
+                                    onClick={verifyPayment}
+                                >
+                                    已完成支付
+                                </Button>
                             </div>
                         </div>
                     </Modal>

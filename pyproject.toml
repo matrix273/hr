@@ -38,6 +38,7 @@ dependencies = [
     "psycopg2-binary>=2.9.11",
     "qrcode>=8.2",
     "aiosmtplib>=5.1.0",
+    "httpx>=0.25.0",
     # Text Processing
     "fuzzywuzzy>=0.18.0",
     "python-levenshtein>=0.27.3",
