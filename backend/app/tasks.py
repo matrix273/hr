@@ -91,11 +91,31 @@ def process_resume_embedding(self, resume_id: str, resume_text: str) -> dict:
             # 更新状态为处理中
             await update_status("processing")
 
+            # 从数据库读取简历元数据（用于 Milvus 过滤字段）
+            created_at_ts = 0
+            is_screened = False
+            async_session_factory = get_async_session_factory()
+            async with async_session_factory() as db:
+                try:
+                    result = await db.execute(
+                        select(Resume).where(Resume.resume_id == resume_id)
+                    )
+                    resume = result.scalar_one_or_none()
+                    if resume:
+                        created_at_ts = int(resume.created_at.timestamp()) if resume.created_at else 0
+                        is_screened = resume.is_screened or False
+                except Exception as e:
+                    logger.warning(f"读取简历元数据失败: {resume_id}, 错误: {e}")
+
             # 创建筛选系统实例
             screening_system = ResumeScreeningSystem()
 
-            # 添加到向量数据库
-            success = screening_system.add_resume(resume_id, resume_text)
+            # 添加到向量数据库（携带元数据）
+            success = screening_system.add_resume(
+                resume_id, resume_text,
+                created_at=created_at_ts,
+                is_screened=is_screened,
+            )
 
             if success:
                 logger.info(f"简历 embedding 处理成功: {resume_id}")

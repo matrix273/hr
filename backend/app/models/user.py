@@ -88,6 +88,7 @@ class Resume(Base):
     original_filename = Column(String(255), nullable=False)
     file_size = Column(Integer, nullable=False)
     resume_text = Column(Text, nullable=False)
+    anonymized_resume_text = Column(Text, nullable=True, comment="脱敏后的简历文本，上传时自动生成")
     user_id = Column(String(50), nullable=False)
     job_id = Column(String(50), nullable=True, comment="关联的岗位ID")
     embedding_status = Column(String(20), default="pending", comment="embedding 处理状态: pending, processing, completed, failed")
@@ -162,6 +163,7 @@ class ScreeningResult(Base):
     rank = Column(Integer, nullable=False, comment="排名")
     llm_evaluation = Column(Text, nullable=False, comment="LLM评估内容")
     matching_score = Column(Float, default=0.0, comment="LLM匹配度评分")
+    deleted = Column(Boolean, default=False, comment="是否已删除（软删除，配额计算仍计入）")
     user_id = Column(String(50), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

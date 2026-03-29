@@ -69,8 +69,9 @@ CREATE TABLE IF NOT EXISTS resumes (
     resume_id         VARCHAR(50)  PRIMARY KEY,
     original_filename VARCHAR(255) NOT NULL,
     file_size         INTEGER      NOT NULL,
-    resume_text       TEXT         NOT NULL,
-    user_id           VARCHAR(50)  NOT NULL,
+    resume_text              TEXT         NOT NULL,
+    anonymized_resume_text   TEXT,
+    user_id                  VARCHAR(50)  NOT NULL,
     job_id            VARCHAR(50),
     embedding_status  VARCHAR(20)  DEFAULT 'pending',
     embedding_error   TEXT,
@@ -84,6 +85,7 @@ COMMENT ON COLUMN resumes.job_id                 IS '关联的岗位ID';
 COMMENT ON COLUMN resumes.embedding_status       IS 'embedding 状态: pending/processing/completed/failed';
 COMMENT ON COLUMN resumes.embedding_error        IS 'embedding 处理错误信息';
 COMMENT ON COLUMN resumes.is_screened            IS '是否已被筛选过';
+COMMENT ON COLUMN resumes.anonymized_resume_text IS '脱敏后的简历文本，上传时自动生成';
 
 -- -----------------------------------------------------------
 -- 4. 岗位表
@@ -123,6 +125,7 @@ CREATE TABLE IF NOT EXISTS screening_results (
     rank             INTEGER      NOT NULL,
     llm_evaluation   TEXT         NOT NULL,
     matching_score   FLOAT        DEFAULT 0.0,
+    deleted          BOOLEAN      DEFAULT FALSE,
     user_id          VARCHAR(50)  NOT NULL,
     created_at       TIMESTAMPTZ  DEFAULT CURRENT_TIMESTAMP
 );
@@ -134,6 +137,7 @@ COMMENT ON COLUMN screening_results.rerank_score   IS 'Rerank 得分';
 COMMENT ON COLUMN screening_results.raw_score      IS '原始 Rerank 得分';
 COMMENT ON COLUMN screening_results.llm_evaluation IS 'LLM 评估内容';
 COMMENT ON COLUMN screening_results.matching_score IS 'LLM 匹配度评分';
+COMMENT ON COLUMN screening_results.deleted         IS '是否已删除（软删除，配额计算仍计入）';
 
 -- -----------------------------------------------------------
 -- 6. 联系表单表

@@ -16,6 +16,7 @@ from ..database import get_db
 from sqlalchemy import select
 from ..tasks import process_resume_embedding
 from ..core.system import ResumeScreeningSystem
+from ..services.llm import LLMClient
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/resumes", tags=["Resumes"])
@@ -99,6 +100,10 @@ async def upload_resume(
         # 生成唯一 ID
         resume_id = str(uuid.uuid4())
 
+        # 生成脱敏文本（上传时一次计算，筛选时直接使用）
+        llm_client = LLMClient()
+        anonymized_text = llm_client.anonymize_resume(resume_text)
+
         # 保存 PDF 文件
         file_path = UPLOAD_DIR / f"{resume_id}.pdf"
         with open(file_path, "wb") as f:
@@ -123,6 +128,7 @@ async def upload_resume(
             original_filename=file.filename,
             file_size=len(file_bytes),
             resume_text=resume_text,
+            anonymized_resume_text=anonymized_text,
             user_id=user.id,
             job_id=job_id
         )
@@ -189,15 +195,18 @@ async def delete_resume(
         resume = result.scalar_one_or_none()
 
         if resume:
-            # 删除关联的筛选结果记录
+            # 软删除关联的筛选结果记录（保留记录，配额计算仍计入）
             sr_result = await db.execute(
-                select(ScreeningResult).where(ScreeningResult.resume_id == resume_id)
+                select(ScreeningResult).where(
+                    ScreeningResult.resume_id == resume_id,
+                    ScreeningResult.deleted == False
+                )
             )
             screening_results = sr_result.scalars().all()
             if screening_results:
                 for sr in screening_results:
-                    await db.delete(sr)
-                logger.info(f"已删除关联的筛选结果 {len(screening_results)} 条: {resume_id}")
+                    sr.deleted = True
+                logger.info(f"已软删除关联的筛选结果 {len(screening_results)} 条: {resume_id}")
 
             await db.delete(resume)
             await db.commit()
@@ -278,18 +287,19 @@ async def batch_delete_resumes(
                 resume = result.scalar_one_or_none()
 
                 if resume:
-                    # 删除关联的筛选结果记录
+                    # 软删除关联的筛选结果记录（保留记录，配额计算仍计入）
                     sr_result = await db.execute(
                         select(ScreeningResult).where(
-                            ScreeningResult.resume_id == resume_id
+                            ScreeningResult.resume_id == resume_id,
+                            ScreeningResult.deleted == False
                         )
                     )
                     screening_results = sr_result.scalars().all()
                     if screening_results:
                         for sr in screening_results:
-                            await db.delete(sr)
+                            sr.deleted = True
                         logger.info(
-                            f"已删除关联的筛选结果 {len(screening_results)} 条: {resume_id}"
+                            f"已软删除关联的筛选结果 {len(screening_results)} 条: {resume_id}"
                         )
 
                     await db.delete(resume)

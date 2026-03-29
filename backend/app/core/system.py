@@ -23,8 +23,21 @@ class ResumeScreeningSystem:
         else:
             logger.info("向量数据库连接正常")
 
-    def add_resume(self, resume_id: str, resume_text: str) -> bool:
-        """Add a resume to the system with intelligent chunking"""
+    def add_resume(
+        self,
+        resume_id: str,
+        resume_text: str,
+        created_at: int = 0,
+        is_screened: bool = False,
+    ) -> bool:
+        """Add a resume to the system with intelligent chunking
+
+        Args:
+            resume_id: 简历ID
+            resume_text: 简历文本
+            created_at: 简历创建时间戳（秒）
+            is_screened: 是否已被筛选
+        """
         try:
             from ..utils.text_chunker import intelligent_chunking
             
@@ -46,18 +59,25 @@ class ResumeScreeningSystem:
             # 插入到向量数据库（支持多向量）
             logger.info(f"开始插入向量数据库: resume_id={resume_id}, 向量数={len(all_embeddings)}")
             
-            # 使用主embedding（第一个块）作为主要向量
             main_embedding = all_embeddings[0]["embedding"]
             
             # 存储所有块信息到向量数据库
-            success = self.vector_db.insert_with_chunks(resume_id, resume_text, main_embedding, all_embeddings)
+            success = self.vector_db.insert_with_chunks(
+                resume_id, resume_text, main_embedding, all_embeddings,
+                created_at=created_at,
+                is_screened=is_screened,
+            )
             
             if success:
                 logger.info(f"简历添加成功: resume_id={resume_id}, 向量数={len(all_embeddings)}")
             else:
                 # 如果多向量插入失败，回退到单向量插入
                 logger.warning(f"多向量插入失败，回退到单向量插入: {resume_id}")
-                self.vector_db.insert(resume_id, resume_text, main_embedding)
+                self.vector_db.insert(
+                    resume_id, resume_text, main_embedding,
+                    created_at=created_at,
+                    is_screened=is_screened,
+                )
                 logger.info(f"简历单向量添加成功: {resume_id}")
                 
             return True

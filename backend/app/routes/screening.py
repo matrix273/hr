@@ -3,6 +3,8 @@
 import json
 import asyncio
 import re
+import hashlib
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +30,7 @@ from ..utils.logger import logger
 from ..auth import get_current_active_user, Permission
 from ..database import get_db
 from ..core.system import ResumeScreeningSystem
+from ..services.vector_db import MilvusVectorDB
 from ..auth.rbac import check_permission
 from ..tasks import evaluate_resume_with_llm
 from ..services.subscription import check_screening_quota
@@ -82,6 +85,7 @@ async def screen_resumes(
 
             # 创建筛选系统
             screening_system = ResumeScreeningSystem()
+            vector_db = MilvusVectorDB()
 
             # 检查向量数据库是否可用
             if not screening_system.vector_db.is_connected():
@@ -96,7 +100,6 @@ async def screen_resumes(
                 request.top_k,
                 time_range=request.time_range,
                 only_unscreened=request.only_unscreened,
-                filter_job_id=request.filter_job_id
             )
             
             if not search_results:
@@ -122,6 +125,10 @@ async def screen_resumes(
 
             # 逐个评估简历并流式返回
             successful_results = []  # 记录成功的评估结果
+            # 使用描述哈希生成稳定的 custom_job_id，用于缓存匹配
+            desc_hash = hashlib.md5(request.job_description.encode("utf-8")).hexdigest()[:16]
+            custom_job_id = f"custom_{user.id}_{desc_hash}"
+            current_model = request.model or "custom"
             
             for idx, item in enumerate(reranked):
                 resume_idx = item["index"]
@@ -140,8 +147,44 @@ async def screen_resumes(
                 # 发送进度更新事件
                 yield f"data: {json.dumps({'type': 'progress', 'index': idx + 1, 'total': len(reranked), 'filename': resume.original_filename})}\n\n"
 
-                # 记录数据大小
-                resume_text = resume_info["resume_text"]
+                # 缓存检查：描述哈希+简历+模型未变，直接返回缓存结果
+                cached = await db.execute(
+                    select(ScreeningResult).where(
+                        ScreeningResult.job_id == custom_job_id,
+                        ScreeningResult.resume_id == resume_id,
+                        ScreeningResult.model == current_model,
+                        ScreeningResult.screening_type == "custom",
+                        ScreeningResult.deleted == False
+                    ).order_by(ScreeningResult.created_at.desc()).limit(1)
+                )
+                cached_result = cached.scalar_one_or_none()
+
+                if cached_result and cached_result.matching_score > 0:
+                    # 命中缓存（仅缓存评估成功的结果）
+                    logger.info(
+                        f"缓存命中(自定义): 简历 {resume_id}, "
+                        f"描述哈希 {desc_hash}, 跳过 LLM 评估"
+                    )
+                    result = {
+                        "type": "result",
+                        "index": len(successful_results) + 1,
+                        "total": len(reranked),
+                        "resume_id": resume_id,
+                        "filename": resume.original_filename,
+                        "file_size": resume.file_size,
+                        "created_at": int(resume.created_at.timestamp()) if resume.created_at else None,
+                        "rerank_score": item["score"],
+                        "llm_evaluation": cached_result.llm_evaluation,
+                        "matching_score": cached_result.matching_score,
+                        "cached": True
+                    }
+                    successful_results.append(result)
+                    yield f"data: {json.dumps(result)}\n\n"
+                    continue
+
+                # 未命中缓存，正常调用 LLM 评估
+                # 使用 PostgreSQL 中的完整简历文本，避免 Milvus VARCHAR 截断
+                resume_text = resume.resume_text
                 prompt_size = len(resume_text) + len(request.job_description)
                 logger.info(f"评估第 {idx+1}/{len(reranked)} 个简历: {resume_info['resume_id']}, "
                            f"简历文本: {len(resume_text):,} 字符, "
@@ -151,9 +194,9 @@ async def screen_resumes(
                 # 异步调用 LLM 评估任务
                 llm_task = evaluate_resume_with_llm.delay(
                     resume_info["resume_id"],
-                    resume_info["resume_text"],
+                    resume.resume_text,
                     request.job_description,
-                    request.model
+                    current_model
                 )
                 
                 # 等待任务完成（带心跳保活，防止连接超时断开）
@@ -166,7 +209,6 @@ async def screen_resumes(
                         if llm_task.ready():
                             llm_result = llm_task.get(timeout=1)
                             break
-                        # 用 asyncio.sleep 让出事件循环，允许 yield 发送心跳数据
                         await asyncio.sleep(1)
                         elapsed += 1
                         if elapsed % heartbeat_interval == 0:
@@ -182,27 +224,27 @@ async def screen_resumes(
                         
                         logger.info(f"简历 {resume_info['resume_id']} LLM 评估完成, 匹配度: {matching_score}%")
                         
-                        # 只有LLM评估成功的简历才保存结果并返回
-                        custom_job_id = f"custom_{user.id}_{int(asyncio.get_event_loop().time())}"
+                        # 保存筛选结果
                         screening_result = ScreeningResult(
                             job_id=custom_job_id,
                             resume_id=resume_id,
-                            model=request.model or "custom",
+                            model=current_model,
                             screening_type="custom",
                             rerank_score=item["score"],
-                            raw_score=item.get("raw_score", item["score"]),  # 保存原始分数
-                            rank=len(successful_results) + 1,  # 重新排序
+                            raw_score=item.get("raw_score", item["score"]),
+                            rank=len(successful_results) + 1,
                             llm_evaluation=llm_content,
                             matching_score=matching_score,
                             user_id=user.id
                         )
                         db.add(screening_result)
                         
-                        # 更新简历的筛选状态
                         resume.is_screened = True
                         
                         try:
                             await db.commit()
+                            # 同步更新 Milvus 中的 is_screened 状态
+                            vector_db.update_screening_status(resume_id, True)
                         except (asyncio.CancelledError, Exception) as commit_err:
                             await db.rollback()
                             if isinstance(commit_err, asyncio.CancelledError):
@@ -210,11 +252,10 @@ async def screen_resumes(
                                 raise
                             logger.error(f"保存筛选结果失败: {commit_err}")
 
-                        # 构建结果
                         result = {
                             "type": "result",
                             "index": len(successful_results) + 1,
-                            "total": len(reranked),  # 仍然显示总数量
+                            "total": len(reranked),
                             "resume_id": resume_info["resume_id"],
                             "filename": resume.original_filename,
                             "file_size": resume.file_size,
@@ -225,24 +266,14 @@ async def screen_resumes(
                         }
                         
                         successful_results.append(result)
-                        
-                        # 流式返回成功的结果
                         yield f"data: {json.dumps(result)}\n\n"
                         
                     else:
-                        llm_content = f"LLM评估失败: {llm_result['message']}"
-                        matching_score = 0
                         logger.warning(f"简历 {resume_info['resume_id']} LLM 评估失败: {llm_result['message']}")
-                        
-                        # LLM评估失败，不保存结果，也不返回给前端
                         continue
                         
                 except Exception as e:
-                    llm_content = f"LLM评估超时或失败: {str(e)}"
-                    matching_score = 0
                     logger.error(f"简历 {resume_info['resume_id']} LLM 评估异常: {e}")
-                    
-                    # LLM评估异常，不保存结果，也不返回给前端
                     continue
 
             # 完成
@@ -299,7 +330,7 @@ async def get_screening_history(
         # 查询该岗位的筛选历史
         result = await db.execute(
             select(ScreeningResult)
-            .where(ScreeningResult.job_id == job_id, ScreeningResult.user_id == user_id)
+            .where(ScreeningResult.job_id == job_id, ScreeningResult.user_id == user_id, ScreeningResult.deleted == False)
             .order_by(ScreeningResult.created_at.desc(), ScreeningResult.rank.asc())
         )
         screening_results = result.scalars().all()
@@ -381,7 +412,7 @@ async def get_custom_screening_history(
         # 查询自定义筛选的历史记录（job_id 以 'custom_' 开头）
         result = await db.execute(
             select(ScreeningResult)
-            .where(ScreeningResult.job_id.like('custom_%'), ScreeningResult.user_id == user_id)
+            .where(ScreeningResult.job_id.like('custom_%'), ScreeningResult.user_id == user_id, ScreeningResult.deleted == False)
             .order_by(ScreeningResult.created_at.desc(), ScreeningResult.rank.asc())
         )
         screening_results = result.scalars().all()
@@ -436,6 +467,8 @@ async def screen_resumes_by_job(
     job_id: str,
     top_k: Optional[int] = 5,
     model: Optional[str] = None,
+    time_range: Optional[int] = 7,
+    only_unscreened: Optional[bool] = False,
     current_user: dict = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -502,6 +535,7 @@ async def screen_resumes_by_job(
 
             # 执行筛选 - 流式返回
             screening_system = ResumeScreeningSystem()
+            vector_db = MilvusVectorDB()
 
             # 检查向量数据库是否可用
             if not screening_system.vector_db.is_connected():
@@ -512,11 +546,10 @@ async def screen_resumes_by_job(
             # 获取搜索和 rerank 结果
             query_embedding = screening_system.embedding.embed_single(job_description)
             search_results = await screening_system.vector_db.search(
-                query_embedding, 
+                query_embedding,
                 top_k,
-                time_range=7,  # 默认7天
-                only_unscreened=False,  # 默认不筛选未评估的
-                filter_job_id=None  # 岗位筛选模式下不需要额外过滤
+                time_range=time_range,
+                only_unscreened=only_unscreened,
             )
             
             if not search_results:
@@ -553,8 +586,48 @@ async def screen_resumes_by_job(
                 # 发送进度更新事件
                 yield f"data: {json.dumps({'type': 'progress', 'index': idx + 1, 'total': len(reranked), 'filename': resume.original_filename})}\n\n"
 
+                current_model = model or "qwen-plus"
+
+                # 缓存检查：岗位+简历+模型未变且岗位未修改，直接返回缓存结果
+                cached = await db.execute(
+                    select(ScreeningResult).where(
+                        ScreeningResult.job_id == job_id,
+                        ScreeningResult.resume_id == resume_id,
+                        ScreeningResult.model == current_model,
+                        ScreeningResult.screening_type == "job",
+                        ScreeningResult.deleted == False
+                    ).order_by(ScreeningResult.created_at.desc()).limit(1)
+                )
+                cached_result = cached.scalar_one_or_none()
+
+                if (cached_result
+                        and job.updated_at
+                        and cached_result.created_at > job.updated_at):
+                    # 命中缓存，跳过 LLM 调用
+                    logger.info(
+                        f"缓存命中: 简历 {resume_id}, "
+                        f"岗位 {job.title} 未修改, 跳过 LLM 评估"
+                    )
+                    result = {
+                        "type": "result",
+                        "index": idx + 1,
+                        "total": len(reranked),
+                        "resume_id": resume_id,
+                        "filename": resume.original_filename,
+                        "file_size": resume.file_size,
+                        "created_at": int(resume.created_at.timestamp()) if resume.created_at else None,
+                        "rerank_score": item["score"],
+                        "llm_evaluation": cached_result.llm_evaluation,
+                        "matching_score": cached_result.matching_score,
+                        "cached": True
+                    }
+                    yield f"data: {json.dumps(result)}\n\n"
+                    continue
+
+                # 未命中缓存，正常调用 LLM 评估
                 # 记录数据大小
-                resume_text = resume_info["resume_text"]
+                # 使用 PostgreSQL 中的完整简历文本，避免 Milvus VARCHAR 截断
+                resume_text = resume.resume_text
                 prompt_size = len(resume_text) + len(job_description)
                 logger.info(f"评估第 {idx+1}/{len(reranked)} 个简历: {resume_info['resume_id']}, "
                            f"简历文本: {len(resume_text):,} 字符, "
@@ -564,9 +637,9 @@ async def screen_resumes_by_job(
                 # 异步调用 LLM 评估任务
                 llm_task = evaluate_resume_with_llm.delay(
                     resume_info["resume_id"],
-                    resume_info["resume_text"],
+                    resume.resume_text,
                     job_description,
-                    model
+                    current_model
                 )
                 
                 # 等待任务完成（带心跳保活，防止连接超时断开）
@@ -579,7 +652,6 @@ async def screen_resumes_by_job(
                         if llm_task.ready():
                             llm_result = llm_task.get(timeout=1)
                             break
-                        # 用 asyncio.sleep 让出事件循环，允许 yield 发送心跳数据
                         await asyncio.sleep(1)
                         elapsed += 1
                         if elapsed % heartbeat_interval == 0:
@@ -608,10 +680,10 @@ async def screen_resumes_by_job(
                 screening_result = ScreeningResult(
                     job_id=job_id,
                     resume_id=resume_id,
-                    model=model or "qwen-plus",
+                    model=current_model,
                     screening_type="job",
                     rerank_score=item["score"],
-                    raw_score=item.get("raw_score", item["score"]),  # 保存原始分数
+                    raw_score=item.get("raw_score", item["score"]),
                     rank=idx + 1,
                     llm_evaluation=llm_content,
                     matching_score=matching_score,
@@ -619,11 +691,12 @@ async def screen_resumes_by_job(
                 )
                 db.add(screening_result)
                 
-                # 更新简历的筛选状态
                 resume.is_screened = True
                 
                 try:
                     await db.commit()
+                    # 同步更新 Milvus 中的 is_screened 状态
+                    vector_db.update_screening_status(resume_id, True)
                 except (asyncio.CancelledError, Exception) as commit_err:
                     await db.rollback()
                     if isinstance(commit_err, asyncio.CancelledError):
@@ -631,7 +704,6 @@ async def screen_resumes_by_job(
                         raise
                     logger.error(f"保存筛选结果失败: {commit_err}")
 
-                # 构建结果
                 result = {
                     "type": "result",
                     "index": idx + 1,
@@ -645,7 +717,6 @@ async def screen_resumes_by_job(
                     "matching_score": matching_score
                 }
 
-                # 流式返回结果
                 yield f"data: {json.dumps(result)}\n\n"
 
             # 完成
@@ -720,12 +791,12 @@ async def batch_delete_history(
                 # 删除历史记录
                 delete_result = await db.execute(
                     select(ScreeningResult)
-                    .where(ScreeningResult.result_id == result_id, ScreeningResult.user_id == user_id)
+                    .where(ScreeningResult.result_id == result_id, ScreeningResult.user_id == user_id, ScreeningResult.deleted == False)
                 )
                 screening_result = delete_result.scalar_one_or_none()
                 
                 if screening_result:
-                    await db.delete(screening_result)
+                    screening_result.deleted = True
                     deleted_count += 1
                 else:
                     failed_count += 1
@@ -1250,7 +1321,8 @@ async def export_pdf(
                 select(ScreeningResult)
                 .where(
                     ScreeningResult.result_id == result_id,
-                    ScreeningResult.user_id == user_id
+                    ScreeningResult.user_id == user_id,
+                    ScreeningResult.deleted == False
                 )
             )
             screening_result = query_result.scalar_one_or_none()

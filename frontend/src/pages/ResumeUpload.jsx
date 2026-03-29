@@ -30,7 +30,9 @@ const ResumeUpload = ({ onUploadSuccess }) => {
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const [uploadResults, setUploadResults] = useState([]);
   const [jobs, setJobs] = useState([]);
-  const [selectedJobId, setSelectedJobId] = useState('');
+  const [selectedJobId, setSelectedJobId] = useState(() => {
+    return localStorage.getItem('upload_selectedJobId') || '';
+  });
   const [loadingJobs, setLoadingJobs] = useState(false);
 
   // 加载岗位列表
@@ -40,7 +42,14 @@ const ResumeUpload = ({ onUploadSuccess }) => {
         setLoadingJobs(true);
         const response = await jobService.getJobs();
         if (response.success) {
-          setJobs(response.jobs || []);
+          const loadedJobs = response.jobs || [];
+          setJobs(loadedJobs);
+          // 验证已保存的 job_id 是否仍在列表中，不存在则清空
+          const saved = localStorage.getItem('upload_selectedJobId');
+          if (saved && !loadedJobs.some(j => j.job_id === saved)) {
+            localStorage.removeItem('upload_selectedJobId');
+            setSelectedJobId('');
+          }
         }
       } catch (error) {
         console.error('加载岗位列表失败:', error);
@@ -267,7 +276,14 @@ const ResumeUpload = ({ onUploadSuccess }) => {
               </div>
               <Select 
                 value={selectedJobId} 
-                onChange={(value) => setSelectedJobId(value)}
+                onChange={(value) => {
+                  setSelectedJobId(value);
+                  if (value) {
+                    localStorage.setItem('upload_selectedJobId', value);
+                  } else {
+                    localStorage.removeItem('upload_selectedJobId');
+                  }
+                }}
                 style={{ width: '100%' }}
                 disabled={loadingJobs}
                 placeholder="请选择岗位"

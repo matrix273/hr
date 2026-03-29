@@ -22,7 +22,6 @@ class ScreenRequest(BaseModel):
     job_description: str = Field(..., description="Job description text")
     top_k: int = Field(5, ge=1, le=50, description="Number of top results to return")
     model: Optional[str] = Field(None, description="LLM model to use for evaluation")
-    filter_job_id: Optional[str] = Field(None, description="Filter resumes by job ID")
     time_range: Optional[int] = Field(7, description="Time range in days (0 for all time)")
     only_unscreened: Optional[bool] = Field(False, description="Only screen unscreened resumes")
 

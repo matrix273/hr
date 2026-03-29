@@ -32,7 +32,9 @@ import {
   DeleteOutlined,
   EyeOutlined,
   CheckSquareOutlined,
-  HistoryOutlined
+  HistoryOutlined,
+  SortAscendingOutlined,
+  SortDescendingOutlined
 } from '@ant-design/icons';
 
 // Markdown表格组件 - 移到组件外部
@@ -136,7 +138,10 @@ const Screening = () => {
 
   // 新增筛选条件
   const [timeRange, setTimeRange] = useState(7); // 默认7天
-  const [onlyUnscreened, setOnlyUnscreened] = useState(false); // 只筛选未评估的
+  const [onlyUnscreened, setOnlyUnscreened] = useState(true); // 只筛选未评估的（默认开启）
+
+  // 排序状态: null=默认顺序, 'asc'=匹配度升序, 'desc'=匹配度降序
+  const [sortOrder, setSortOrder] = useState(null);
 
   // 历史记录状态
   const [showHistory, setShowHistory] = useState(false);
@@ -613,14 +618,14 @@ const Screening = () => {
       }
       
       if (useJobId) {
-        await streamScreeningResults(currentJob.job_id, null, null, timeRange, onlyUnscreened);
+        await streamScreeningResults(currentJob.job_id, null, timeRange, onlyUnscreened);
       } else {
         if (!jobDescription.trim()) {
           setError('请输入职位描述');
           setLoading(false);
           return;
         }
-        await streamScreeningResults(null, jobDescription, currentJob.job_id, timeRange, onlyUnscreened);
+        await streamScreeningResults(null, jobDescription, timeRange, onlyUnscreened);
       }
     } catch (err) {
       setError(err.response?.data?.detail || '筛选失败');
@@ -628,7 +633,7 @@ const Screening = () => {
     }
   };
 
-  const streamScreeningResults = async (jobId, jobDescription = null, filterJobId = null, timeRange = 7, onlyUnscreened = false) => {
+  const streamScreeningResults = async (jobId, jobDescription = null, timeRange = 7, onlyUnscreened = false) => {
     let url;
     let data = null;
     
@@ -639,14 +644,12 @@ const Screening = () => {
       // 选择岗位模式：自动使用选中的岗位进行筛选，不需要额外的filter参数
       url = `${getApiBaseUrl()}/screening/screen_by_job/${jobId}?${baseParams}`;
     } else {
-      // 自定义描述模式：支持岗位过滤
-      const filterParam = filterJobId ? `&filter_job_id=${filterJobId}` : '';
-      url = `${getApiBaseUrl()}/screening/screen?${baseParams}${filterParam}`;
+      // 自定义描述模式
+      url = `${getApiBaseUrl()}/screening/screen`;
       data = {
         job_description: jobDescription,
         top_k: topK,
         model: selectedModel,
-        filter_job_id: filterJobId || undefined,
         time_range: timeRange,
         only_unscreened: onlyUnscreened
       };
@@ -671,6 +674,7 @@ const Screening = () => {
 
       // 清空之前的结果
       setResults([]);
+      setSortOrder(null); // 重置排序
 
       while (true) {
         const { done, value } = await reader.read();
@@ -792,6 +796,43 @@ const Screening = () => {
     if (match && parseInt(match[1], 10) <= 100) return parseInt(match[1], 10);
     return null;
   };
+
+  // 从结果中获取匹配度评分（优先使用 matching_score 字段，其次从 llm_evaluation 解析）
+  const getResultScore = (result) => {
+    if (result.matching_score != null && result.matching_score > 0) {
+      return result.matching_score;
+    }
+    return extractMatchingScore(result.llm_evaluation) ?? 0;
+  };
+
+  // 切换排序: 默认 -> 降序 -> 升序 -> 默认
+  const toggleSort = () => {
+    setSortOrder(prev => {
+      if (prev === null) return 'desc';
+      if (prev === 'desc') return 'asc';
+      return null;
+    });
+  };
+
+  // 按匹配度排序后的新结果
+  const sortedResults = (() => {
+    if (!sortOrder || results.length === 0) return results;
+    return [...results].sort((a, b) => {
+      const scoreA = getResultScore(a);
+      const scoreB = getResultScore(b);
+      return sortOrder === 'desc' ? scoreB - scoreA : scoreA - scoreB;
+    });
+  })();
+
+  // 按匹配度排序后的历史结果
+  const sortedHistoryResults = (() => {
+    if (!sortOrder || filteredHistoryResults.length === 0) return filteredHistoryResults;
+    return [...filteredHistoryResults].sort((a, b) => {
+      const scoreA = getResultScore(a);
+      const scoreB = getResultScore(b);
+      return sortOrder === 'desc' ? scoreB - scoreA : scoreA - scoreB;
+    });
+  })();
 
   const formatDate = (timestamp) => {
     if (!timestamp) return '-';
@@ -1137,7 +1178,20 @@ const Screening = () => {
                       删除选中 ({selectedHistory.length})
                     </Button>
                   )}
-                  
+
+                  {/* 按匹配度排序按钮 */}
+                  {((showHistory && filteredHistoryResults.length > 1) || (!showHistory && results.length > 1)) && (
+                    <Tooltip title={sortOrder === null ? '点击按匹配度排序' : sortOrder === 'desc' ? '匹配度: 高→低 (点击切换)' : '匹配度: 低→高 (点击恢复默认)'}>
+                      <Button
+                        type={sortOrder ? 'primary' : 'default'}
+                        icon={sortOrder === 'asc' ? <SortAscendingOutlined /> : <SortDescendingOutlined />}
+                        onClick={toggleSort}
+                      >
+                        匹配度排序
+                      </Button>
+                    </Tooltip>
+                  )}
+
                   {/* 历史/新结果切换按钮 */}
                   {selectedJob && (historyResults.length > 0 || results.length > 0) && (
                     <Button
@@ -1203,7 +1257,7 @@ const Screening = () => {
 
                   return (
                     <div style={styles.resultsList}>
-                      {results.map((result, index) => {
+                      {sortedResults.map((result, index) => {
                         const isExpanded = expandedItems[result.resume_id] || false;
                         return (
                           <div 
@@ -1251,10 +1305,18 @@ const Screening = () => {
                                   <span style={styles.metaItem}>
                                     📅 {formatDate(result.created_at)}
                                     </span>
-                                    <span style={styles.metaSeparator}>•</span>
-                                    <span style={styles.metaItem}>
+                                  <span style={styles.metaSeparator}>•</span>
+                                  <span style={styles.metaItem}>
                                       📦 {formatSize(result.file_size)}
                                     </span>
+                                  {result.cached && (
+                                    <>
+                                      <span style={styles.metaSeparator}>•</span>
+                                      <span style={{ ...styles.metaItem, color: '#52c41a' }}>
+                                        缓存结果
+                                      </span>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                               <button
@@ -1364,7 +1426,7 @@ const Screening = () => {
                     </div>
                   )}
                       
-                      {filteredHistoryResults.map((result, index) => {
+                      {sortedHistoryResults.map((result, index) => {
                         const isExpanded = expandedItems[`history-${result.result_id}`] || false;
                         return (
                           <div 
