@@ -294,7 +294,8 @@ const Screening = () => {
         const link = document.createElement('a');
         link.href = url;
         const jobName = selectedJob?.title || filterJob?.title || '自定义筛选';
-        const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '_');
+        const now = new Date();
+        const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
         link.download = `${timestamp}_${jobName}_${data.length}份.md`;
         document.body.appendChild(link);
         link.click();
@@ -359,7 +360,8 @@ const Screening = () => {
       
       // 生成与PDF一致的文件名
       const jobName = selectedJob?.title || filterJob?.title || '自定义筛选';
-      const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '_');
+      const now = new Date();
+      const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
       const filename = `${timestamp}_${jobName}_${data.length}份.md`;
       
       link.href = url;
@@ -450,7 +452,8 @@ const Screening = () => {
     });
     
     const jobName = selectedJob?.title || filterJob?.title || '自定义筛选';
-    const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '_');
+    const now = new Date();
+    const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
     const filename = `${timestamp}_${jobName}_${data.length}份.md`;
     
     // 创建下载链接
