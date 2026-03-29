@@ -8,7 +8,8 @@ import {
   TeamOutlined,
   CreditCardOutlined,
   BankOutlined,
-  AuditOutlined
+  AuditOutlined,
+  MailOutlined
 } from '@ant-design/icons';
 import { hasAnyPermission } from '../utils/permissions';
 import { Permission } from '../utils/permissions';
@@ -63,6 +64,11 @@ const Sidebar = ({ activeItem, onItemClick, collapsed }) => {
       icon: <CreditCardOutlined />,
       label: '会员订阅'
     },
+    ...(canViewAudit ? [{
+      key: 'contacts',
+      icon: <MailOutlined />,
+      label: '消息管理'
+    }] : []),
     ...(canViewAudit ? [{
       key: 'audit',
       icon: <AuditOutlined />,

@@ -231,6 +231,234 @@ async def create_user(
     )
 
 
+@router.post("/contact", status_code=status.HTTP_200_OK)
+async def submit_contact(
+    contact_data: ContactForm,
+    db: AsyncSession = Depends(get_db)
+):
+    """提交联系表单（无需认证）"""
+    logger.info(f"收到联系表单: 姓名={contact_data.name}, 邮箱={contact_data.email}, 留言={contact_data.message[:50]}...")
+
+    new_contact = Contact(
+        name=contact_data.name,
+        email=contact_data.email,
+        message=contact_data.message,
+        status="pending"
+    )
+    db.add(new_contact)
+    await db.commit()
+    await db.refresh(new_contact)
+
+    logger.info(f"联系表单已保存: ID={new_contact.id}")
+
+    # 异步发送邮件通知管理员
+    import asyncio
+    import os
+    from ..services.email_service import _send_email_async
+    admin_email = os.getenv("ADMIN_EMAIL", "")
+
+    async def _notify_admin():
+        if not admin_email:
+            logger.info("未配置 ADMIN_EMAIL，跳过邮件通知")
+            return
+        subject = f"【用户反馈】{contact_data.name} 提交了新消息"
+        html_body = f"""
+        <div style="max-width: 480px; margin: 0 auto; font-family: Arial, sans-serif;
+                    background: #f9f9f9; border-radius: 8px; overflow: hidden;">
+            <div style="background: #4f46e5; padding: 24px; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 22px;">AI简历筛选系统 - 用户反馈</h1>
+            </div>
+            <div style="padding: 24px; background: white;">
+                <p><strong>联系人：</strong>{contact_data.name}</p>
+                <p><strong>邮箱：</strong><a href="mailto:{contact_data.email}">{contact_data.email}</a></p>
+                <p><strong>时间：</strong>{new_contact.created_at.strftime('%Y-%m-%d %H:%M:%S') if new_contact.created_at else '-'}</p>
+                <div style="margin-top: 16px; padding: 16px; background: #f5f5f5;
+                            border-radius: 6px; border-left: 4px solid #4f46e5;">
+                    <p style="margin: 0; white-space: pre-wrap; word-break: break-all;">
+                        {contact_data.message}
+                    </p>
+                </div>
+            </div>
+        </div>
+        """
+        await _send_email_async(admin_email, subject, html_body)
+
+    asyncio.create_task(_notify_admin())
+
+    return {
+        "success": True,
+        "message": "感谢您的留言，我们会尽快与您联系！"
+    }
+
+
+class ContactResponse(BaseModel):
+    """联系表单响应"""
+    id: int
+    name: str
+    email: str
+    message: str
+    status: str
+    created_at: Optional[str] = None
+
+
+class ContactReplyRequest(BaseModel):
+    """回复联系表单请求"""
+    reply_content: str
+
+
+@router.post("/contacts/{contact_id}/reply")
+async def reply_contact(
+    contact_id: int,
+    reply_data: ContactReplyRequest,
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """管理员通过邮件回复用户反馈（需要系统管理权限）"""
+    if not check_permission(Permission.SYSTEM_ADMIN, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"缺少所需权限: {Permission.SYSTEM_ADMIN.value}"
+        )
+
+    if not reply_data.reply_content.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="回复内容不能为空"
+        )
+
+    # 查询联系记录
+    result = await db.execute(select(Contact).where(Contact.id == contact_id))
+    contact = result.scalar_one_or_none()
+
+    if not contact:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="联系记录不存在"
+        )
+
+    # 异步发送回复邮件
+    import asyncio
+    import os
+    from ..services.email_service import _send_email_async
+    admin_email = os.getenv("ADMIN_EMAIL", "")
+    reply_content = reply_data.reply_content.strip()
+
+    async def _send_reply():
+        if not admin_email:
+            logger.error("未配置 ADMIN_EMAIL，无法发送回复邮件")
+            return False
+
+        created_at = contact.created_at.strftime('%Y-%m-%d %H:%M:%S') if contact.created_at else '-'
+        subject = f"【回复】关于您的反馈 - AI简历筛选系统"
+        html_body = f"""
+        <div style="max-width: 480px; margin: 0 auto; font-family: Arial, sans-serif;
+                    background: #f9f9f9; border-radius: 8px; overflow: hidden;">
+            <div style="background: #4f46e5; padding: 24px; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 22px;">AI简历筛选系统 - 回复通知</h1>
+            </div>
+            <div style="padding: 24px; background: white;">
+                <p>尊敬的 <strong>{contact.name}</strong>，您好！</p>
+                <p style="color: #666; margin-bottom: 16px;">以下是您之前提交的反馈内容：</p>
+                <div style="padding: 16px; background: #f5f5f5; border-radius: 6px;
+                            border-left: 4px solid #e5e7eb; margin-bottom: 20px;">
+                    <p style="margin: 0 0 8px; color: #999; font-size: 13px;">
+                        提交时间：{created_at}
+                    </p>
+                    <p style="margin: 0; white-space: pre-wrap; word-break: break-all;">
+                        {contact.message}
+                    </p>
+                </div>
+                <p style="color: #666; margin-bottom: 12px;">管理员回复：</p>
+                <div style="padding: 16px; background: #f0eeff; border-radius: 6px;
+                            border-left: 4px solid #4f46e5;">
+                    <p style="margin: 0; white-space: pre-wrap; word-break: break-all;">
+                        {reply_content}
+                    </p>
+                </div>
+            </div>
+            <div style="padding: 16px; text-align: center; background: #f9f9f9;">
+                <p style="font-size: 12px; color: #ccc; margin: 0;">
+                    此邮件由 AI简历筛选系统 自动发送，请勿直接回复。
+                </p>
+            </div>
+        </div>
+        """
+        return await _send_email_async(contact.email, subject, html_body)
+
+    sent = await _send_reply()
+    if not sent:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="邮件发送失败，请检查邮箱配置后重试"
+        )
+
+    # 标记为已处理
+    contact.status = "processed"
+    await db.commit()
+
+    logger.info(f"回复联系表单: ID={contact_id}, 回复人: {current_user['username']}")
+    return {"success": True, "message": "回复邮件已发送"}
+
+
+@router.get("/contacts", response_model=List[ContactResponse])
+async def list_contacts(
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取联系表单列表（需要系统管理权限）"""
+    if not check_permission(Permission.SYSTEM_ADMIN, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"缺少所需权限: {Permission.SYSTEM_ADMIN.value}"
+        )
+
+    result = await db.execute(select(Contact).order_by(Contact.created_at.desc()))
+    contacts = result.scalars().all()
+
+    return [
+        ContactResponse(
+            id=c.id,
+            name=c.name,
+            email=c.email,
+            message=c.message,
+            status=c.status,
+            created_at=c.created_at.isoformat() if c.created_at else None
+        )
+        for c in contacts
+    ]
+
+
+@router.put("/contacts/{contact_id}")
+async def update_contact_status(
+    contact_id: int,
+    status: str = "processed",
+    current_user: dict = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """更新联系表单状态（需要系统管理权限）"""
+    if not check_permission(Permission.SYSTEM_ADMIN, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"缺少所需权限: {Permission.SYSTEM_ADMIN.value}"
+        )
+
+    result = await db.execute(select(Contact).where(Contact.id == contact_id))
+    contact = result.scalar_one_or_none()
+
+    if not contact:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="联系记录不存在"
+        )
+
+    contact.status = status
+    await db.commit()
+
+    logger.info(f"更新联系表单状态: ID={contact_id}, 状态={status}, 操作者: {current_user['username']}")
+
+    return {"success": True, "message": "状态已更新"}
+
+
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: str,
@@ -618,99 +846,3 @@ async def register(
         created_at=new_user.created_at.isoformat() if new_user.created_at else None,
         updated_at=new_user.updated_at.isoformat() if new_user.updated_at else None
     )
-
-
-@router.post("/contact", status_code=status.HTTP_200_OK)
-async def submit_contact(
-    contact_data: ContactForm,
-    db: AsyncSession = Depends(get_db)
-):
-    """提交联系表单（无需认证）"""
-    logger.info(f"收到联系表单: 姓名={contact_data.name}, 邮箱={contact_data.email}, 留言={contact_data.message[:50]}...")
-
-    # 保存到数据库
-    new_contact = Contact(
-        name=contact_data.name,
-        email=contact_data.email,
-        message=contact_data.message,
-        status="pending"
-    )
-    db.add(new_contact)
-    await db.commit()
-    await db.refresh(new_contact)
-
-    logger.info(f"联系表单已保存: ID={new_contact.id}")
-
-    return {
-        "success": True,
-        "message": "感谢您的留言，我们会尽快与您联系！"
-    }
-
-
-class ContactResponse(BaseModel):
-    """联系表单响应"""
-    id: int
-    name: str
-    email: str
-    message: str
-    status: str
-    created_at: Optional[str] = None
-
-
-@router.get("/contacts", response_model=List[ContactResponse])
-async def list_contacts(
-    current_user: dict = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """获取联系表单列表（需要系统管理权限）"""
-    if not check_permission(Permission.SYSTEM_ADMIN, current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"缺少所需权限: {Permission.SYSTEM_ADMIN.value}"
-        )
-
-    result = await db.execute(select(Contact).order_by(Contact.created_at.desc()))
-    contacts = result.scalars().all()
-
-    return [
-        ContactResponse(
-            id=c.id,
-            name=c.name,
-            email=c.email,
-            message=c.message,
-            status=c.status,
-            created_at=c.created_at.isoformat() if c.created_at else None
-        )
-        for c in contacts
-    ]
-
-
-@router.put("/contacts/{contact_id}")
-async def update_contact_status(
-    contact_id: int,
-    status: str = "processed",
-    current_user: dict = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """更新联系表单状态（需要系统管理权限）"""
-    if not check_permission(Permission.SYSTEM_ADMIN, current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"缺少所需权限: {Permission.SYSTEM_ADMIN.value}"
-        )
-
-    result = await db.execute(select(Contact).where(Contact.id == contact_id))
-    contact = result.scalar_one_or_none()
-
-    if not contact:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="联系记录不存在"
-        )
-
-    contact.status = status
-    await db.commit()
-
-    logger.info(f"更新联系表单状态: ID={contact_id}, 状态={status}, 操作者: {current_user['username']}")
-
-    return {"success": True, "message": "状态已更新"}

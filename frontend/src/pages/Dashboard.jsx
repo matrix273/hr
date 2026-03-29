@@ -10,6 +10,7 @@ import UserManagement from './UserManagement';
 import CompanyManagement from './CompanyManagement';
 import Payment from './Payment';
 import AuditLog from './AuditLog';
+import MessageManagement from './MessageManagement';
 import Sidebar from '../components/Sidebar';
 
 const { Header, Content, Sider } = Layout;
@@ -161,6 +162,10 @@ const Dashboard = () => {
 
           {activeTab === 'payment' && (
             <Payment />
+          )}
+
+          {activeTab === 'contacts' && (
+            <MessageManagement />
           )}
 
           {activeTab === 'audit' && (
