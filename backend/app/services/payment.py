@@ -66,6 +66,7 @@ def _check_notify_sign(post_data: dict, key: str) -> bool:
         "payNo": post_data.get("payNo"),
         "money": post_data.get("money"),
         "mchId": post_data.get("mchId"),
+        "payChannel": post_data.get("payChannel"),
     }
     return _get_sign(params_dict, key) == sign
 
@@ -171,7 +172,8 @@ class YunGouOSService:
                 return {"success": False, "error": "签名验证失败"}
 
             code = post_data.get("code")
-            if code != 0:
+            # code=1 支付成功，code=0 支付失败
+            if str(code) != "1":
                 logger.warning(f"YunGouOS 回调支付失败, code={code}")
                 return {"success": False, "error": f"支付失败, code={code}"}
 

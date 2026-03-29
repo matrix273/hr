@@ -279,7 +279,8 @@ async def payment_notify(request: Request):
     """YunGouOS 支付回调通知（无需鉴权，由支付平台调用）"""
     try:
         form_data = await request.form()
-        post_data = dict(form_data)
+        # FormData 值为 list，需转为单值字符串
+        post_data = {k: v if isinstance(v, str) else v[0] for k, v in form_data.items()}
         logger.info(f"收到 YunGouOS 支付回调: {post_data}")
     except Exception as e:
         logger.error(f"解析回调数据失败: {e}")
