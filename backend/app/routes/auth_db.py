@@ -87,26 +87,6 @@ class UserResponse(BaseModel):
     company_id: str | None = None
 
 
-async def create_default_admin(db: AsyncSession):
-    """创建默认管理员用户"""
-    result = await db.execute(select(User).where(User.username == "admin"))
-    existing_user = result.scalar_one_or_none()
-
-    if not existing_user:
-        admin_user = User(
-            id="user_admin",
-            username="admin",
-            email="admin@example.com",
-            password_hash=get_password_hash("admin123"),
-            full_name="系统管理员",
-            role=Role.ADMIN.value,
-            is_active=True
-        )
-        db.add(admin_user)
-        await db.commit()
-        logger.info("默认管理员用户已创建: admin/admin123")
-
-
 @router.post("/send-code")
 async def send_code(req: SendCodeRequest):
     """发送邮箱验证码"""

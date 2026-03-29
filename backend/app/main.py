@@ -15,7 +15,6 @@ from .models.schemas import (
 from .config import CORS_ORIGINS, FASTAPI_HOST, FASTAPI_PORT
 from .utils.logger import logger
 from .utils.fastapi_logger import setup_fastapi_logger, log_exception
-from .routes.auth_db import create_default_admin
 from .auth import get_current_active_user, Permission, require_permission
 from .database import AsyncSessionLocal, close_db
 
@@ -31,14 +30,6 @@ async def lifespan(app: FastAPI):
     # 初始化日志
     setup_fastapi_logger()
     logger.info("Starting Resume Screening System...")
-
-    # 创建默认管理员
-    try:
-        async with AsyncSessionLocal() as db:
-            await create_default_admin(db)
-    except Exception as e:
-        logger.error(f"创建默认管理员失败: {e}")
-        # 继续启动，不阻止应用
 
     # 初始化默认套餐
     try:
