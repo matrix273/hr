@@ -458,18 +458,25 @@ const PaymentPage = () => {
                                         const isSelected = selectedMethod?.code === method.code;
                                         const icon = METHOD_ICON_MAP[method.code] || METHOD_ICON_MAP.default;
                                         const bg = METHOD_BG_MAP[method.code] || METHOD_BG_MAP.default;
-                                        return (
+                                        const isAlipay = method.code === 'alipay_qrcode';
+                                        const card = (
                                             <Card
                                                 key={method.code}
-                                                hoverable
-                                                onClick={() => setSelectedMethod(method)}
+                                                hoverable={!isAlipay}
+                                                onClick={() => {
+                                                    if (isAlipay) return;
+                                                    setSelectedMethod(method);
+                                                }}
                                                 style={{
-                                                    cursor: 'pointer',
+                                                    cursor: isAlipay ? 'not-allowed' : 'pointer',
                                                     border: isSelected
                                                         ? '2px solid #1890ff'
                                                         : '1px solid #f0f0f0',
                                                     borderRadius: 12,
-                                                    background: bg,
+                                                    background: isAlipay
+                                                        ? 'linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%)'
+                                                        : bg,
+                                                    opacity: isAlipay ? 0.5 : 1,
                                                     transition: 'all 0.3s',
                                                     textAlign: 'center',
                                                 }}
@@ -477,17 +484,48 @@ const PaymentPage = () => {
                                             >
                                                 <div style={{ marginBottom: 8 }}>
                                                     {icon}
+                                                    {isAlipay && (
+                                                        <Tag
+                                                            color="default"
+                                                            style={{
+                                                                marginLeft: 6,
+                                                                fontSize: 11,
+                                                                verticalAlign: 'middle',
+                                                            }}
+                                                        >
+                                                            暂不可用
+                                                        </Tag>
+                                                    )}
                                                 </div>
-                                                <div style={{ fontWeight: 600, fontSize: 14 }}>
+                                                <div style={{
+                                                    fontWeight: 600,
+                                                    fontSize: 14,
+                                                    color: isAlipay ? '#bfbfbf' : undefined,
+                                                }}>
                                                     {method.name}
                                                 </div>
                                                 {method.description && (
-                                                    <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4 }}>
+                                                    <div style={{
+                                                        fontSize: 12,
+                                                        color: isAlipay ? '#d9d9d9' : '#8c8c8c',
+                                                        marginTop: 4,
+                                                    }}>
                                                         {method.description}
                                                     </div>
                                                 )}
                                             </Card>
                                         );
+                                        if (isAlipay) {
+                                            return (
+                                                <Tooltip
+                                                    key={method.code}
+                                                    title="当前不支持支付宝，请使用微信支付"
+                                                >
+                                                    {card}
+                                                </Tooltip>
+                                            );
+                                        }
+                                        return card;
                                     })}
                                 </div>
                             </div>
