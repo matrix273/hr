@@ -674,12 +674,17 @@ const Screening = () => {
       setResults([]);
       setSortOrder(null); // 重置排序
 
+      // 用 buffer 处理跨 chunk 的不完整行
+      let buffer = '';
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        // 最后一个元素可能是不完整的行，保留在 buffer 中
+        buffer = lines.pop() || '';
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
@@ -694,7 +699,6 @@ const Screening = () => {
               }
 
               if (data.type === 'start') {
-                // 开始处理第一个简历
                 setCurrentProgress({
                   current: 0,
                   total: data.total,
@@ -703,7 +707,6 @@ const Screening = () => {
               }
 
               if (data.type === 'progress') {
-                // 更新当前处理进度
                 setCurrentProgress({
                   current: data.index,
                   total: data.total,
@@ -712,7 +715,6 @@ const Screening = () => {
               }
 
               if (data.type === 'result') {
-                // 立即显示当前完成的结果
                 setResults(prev => [...prev, data]);
                 setCurrentProgress({
                   current: data.index + 1,
