@@ -199,20 +199,53 @@ CREATE TABLE IF NOT EXISTS subscription_plans (
     max_jobs          INTEGER      DEFAULT 10,
     ai_screening      BOOLEAN      DEFAULT TRUE,
     priority_support  BOOLEAN      DEFAULT FALSE,
+    is_test           BOOLEAN      DEFAULT FALSE,
     is_active         BOOLEAN      DEFAULT TRUE,
+    plan_type         VARCHAR(20)  DEFAULT 'subscription',
+    addon_resumes     INTEGER      DEFAULT 0,
+    addon_jobs        INTEGER      DEFAULT 0,
     created_at        TIMESTAMPTZ  DEFAULT CURRENT_TIMESTAMP
 );
 
-COMMENT ON TABLE  subscription_plans              IS '订阅套餐表';
-COMMENT ON COLUMN subscription_plans.name          IS '套餐名称';
-COMMENT ON COLUMN subscription_plans.description   IS '套餐描述';
-COMMENT ON COLUMN subscription_plans.price         IS '价格';
-COMMENT ON COLUMN subscription_plans.duration_days IS '有效期（天）';
-COMMENT ON COLUMN subscription_plans.max_resumes   IS '最大简历数量';
-COMMENT ON COLUMN subscription_plans.max_jobs      IS '最大岗位数量';
-COMMENT ON COLUMN subscription_plans.ai_screening  IS '是否包含AI筛选';
-COMMENT ON COLUMN subscription_plans.priority_support IS '是否优先支持';
-COMMENT ON COLUMN subscription_plans.is_active     IS '是否激活';
+COMMENT ON TABLE  subscription_plans                    IS '订阅套餐表';
+COMMENT ON COLUMN subscription_plans.name                IS '套餐名称';
+COMMENT ON COLUMN subscription_plans.description         IS '套餐描述';
+COMMENT ON COLUMN subscription_plans.price               IS '价格';
+COMMENT ON COLUMN subscription_plans.duration_days       IS '有效期（天）';
+COMMENT ON COLUMN subscription_plans.max_resumes         IS '最大简历数量';
+COMMENT ON COLUMN subscription_plans.max_jobs            IS '最大岗位数量';
+COMMENT ON COLUMN subscription_plans.ai_screening        IS '是否包含AI筛选';
+COMMENT ON COLUMN subscription_plans.priority_support    IS '是否优先支持';
+COMMENT ON COLUMN subscription_plans.is_active           IS '是否激活';
+COMMENT ON COLUMN subscription_plans.is_test             IS '是否为测试套餐（仅管理员可见）';
+COMMENT ON COLUMN subscription_plans.plan_type           IS '套餐类型: subscription-订阅, addon-加量包';
+COMMENT ON COLUMN subscription_plans.addon_resumes       IS '加量包额外增加的筛选简历数';
+COMMENT ON COLUMN subscription_plans.addon_jobs          IS '加量包额外增加的岗位数';
+
+-- -----------------------------------------------------------
+-- 8.1 加量包购买记录表
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS quota_addons (
+    id              SERIAL       PRIMARY KEY,
+    order_id        VARCHAR(50)  UNIQUE NOT NULL,
+    user_id         VARCHAR(50)  NOT NULL,
+    company_id      VARCHAR(50),
+    addon_resumes   INTEGER      DEFAULT 0,
+    addon_jobs      INTEGER      DEFAULT 0,
+    month_key       VARCHAR(7),
+    created_at      TIMESTAMPTZ  DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE  quota_addons                   IS '加量包购买记录表';
+COMMENT ON COLUMN quota_addons.order_id          IS '关联的支付订单ID';
+COMMENT ON COLUMN quota_addons.user_id           IS '购买用户ID';
+COMMENT ON COLUMN quota_addons.company_id        IS '公司ID（有公司时记录）';
+COMMENT ON COLUMN quota_addons.addon_resumes     IS '额外增加的筛选简历数';
+COMMENT ON COLUMN quota_addons.addon_jobs        IS '额外增加的岗位数';
+COMMENT ON COLUMN quota_addons.month_key         IS '废弃字段';
+
+CREATE INDEX IF NOT EXISTS idx_quota_addons_user_id    ON quota_addons(user_id);
+CREATE INDEX IF NOT EXISTS idx_quota_addons_company_id ON quota_addons(company_id);
 
 -- -----------------------------------------------------------
 -- 9. 审计日志表
@@ -246,10 +279,18 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at  ON audit_logs(created_at);
 -- ============================================================
 
 -- 默认订阅套餐（ON CONFLICT 保证可重复执行）
-INSERT INTO subscription_plans (id, name, description, price, duration_days, max_resumes, max_jobs, ai_screening, priority_support, is_active)
+INSERT INTO subscription_plans (id, name, description, price, duration_days, max_resumes, max_jobs, ai_screening, priority_support, is_active, is_test, plan_type, addon_resumes, addon_jobs)
 VALUES
-    ('free',         '免费版', '基础功能体验', 0,   30, 10,   3,   TRUE, FALSE, TRUE),
-    ('basic',        '基础版', '适合小型团队', 99,  30, 100,  10,  TRUE,  FALSE, TRUE),
-    ('professional', '专业版', '适合中型企业', 299, 30, 500,  50,  TRUE,  TRUE,  TRUE),
-    ('enterprise',   '企业版', '适合大型企业', 999, 30, 1000, 100, TRUE,  TRUE,  TRUE)
+    -- 月度会员
+    ('free',  '免费版', '适合个人体验，基础功能免费使用',      0,    36500, 10,    3,    TRUE,  FALSE, TRUE,  FALSE, 'subscription', 0,   0),
+    ('basic', '基础版', '适合小型团队，满足日常招聘需求',       99,   30,    100,   10,   TRUE,  FALSE, TRUE,  FALSE, 'subscription', 0,   0),
+    ('pro',   '专业版', '适合中型企业，高效批量处理简历',      299,  30,    500,   50,   TRUE,  TRUE,  TRUE,  FALSE, 'subscription', 0,   0),
+    ('enterprise', '企业版', '适合大型企业，高效批量处理简历', 999,  30,    1000,  100,  TRUE,  TRUE,  TRUE,  FALSE, 'subscription', 0,   0)
+    -- 测试套餐（仅管理员可见）
+    ('test',  '测试套餐', '仅管理员可见，用于测试支付流程',  0.01,  1,    10,    3,    TRUE,  FALSE, TRUE,  TRUE,  'subscription', 0,   0),
+    -- 加量包（一次性购买，永久有效）
+    ('addon_resume_50',  '筛选简历加量包(50份)',  '一次性额外增加50份AI筛选简历配额',  29,  30, 0, 0, TRUE, FALSE, TRUE, FALSE, 'addon', 50,  0),
+    ('addon_resume_200', '筛选简历加量包(200份)', '一次性额外增加200份AI筛选简历配额', 99,  30, 0, 0, TRUE, FALSE, TRUE, FALSE, 'addon', 200, 0),
+    ('addon_resume_500', '筛选简历加量包(500份)', '一次性额外增加500份AI筛选简历配额', 199, 30, 0, 0, TRUE, FALSE, TRUE, FALSE, 'addon', 500, 0),
+    ('addon_job_10',     '岗位加量包(10个)',      '一次性额外增加10个岗位发布配额',    29,  30, 0, 0, TRUE, FALSE, TRUE, FALSE, 'addon', 0,   10)
 ON CONFLICT (id) DO NOTHING;

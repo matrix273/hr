@@ -8,11 +8,9 @@ import {
     ClockCircleOutlined, AppstoreOutlined, FileTextOutlined,
     PlusCircleOutlined, AlipayCircleOutlined,
     WechatOutlined, CreditCardOutlined, CrownOutlined,
-    CloseCircleOutlined, QuestionCircleOutlined, SettingOutlined
+    CloseCircleOutlined, QuestionCircleOutlined
 } from '@ant-design/icons';
 import { getApiBaseUrl } from '../utils/api';
-import { shouldShowElement, Permission } from '../utils/permissions';
-import PlanManagement from '../components/PlanManagement';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -44,7 +42,6 @@ const PaymentPage = () => {
     const [orders, setOrders] = useState([]);
     const [activeTab, setActiveTab] = useState('plans');
     const pollTimerRef = useRef(null);
-    const isAdmin = shouldShowElement(Permission.SYSTEM_ADMIN);
 
     // 区分订阅套餐和加量包
     const subscriptionPlans = useMemo(
@@ -371,20 +368,9 @@ const PaymentPage = () => {
                 >
                     订单记录
                 </Button>
-                {isAdmin && (
-                    <Button
-                        type={activeTab === 'manage' ? 'primary' : 'default'}
-                        onClick={() => setActiveTab('manage')}
-                        icon={<SettingOutlined />}
-                    >
-                        套餐管理
-                    </Button>
-                )}
             </Space>
 
-            {activeTab === 'manage' && isAdmin ? (
-                <PlanManagement />
-            ) : activeTab === 'plans' ? (
+            {activeTab === 'plans' ? (
                 <>
                     {/* 套餐卡片 */}
                     <div style={{
