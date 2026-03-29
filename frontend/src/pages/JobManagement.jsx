@@ -9,6 +9,7 @@ import {
   message,
   Modal,
   Space,
+  Popconfirm,
   Typography,
   Divider
 } from 'antd';
@@ -91,15 +92,12 @@ const JobManagement = () => {
   };
 
   const handleDelete = async (jobId) => {
-    if (!window.confirm('确定要删除这个岗位吗？')) {
-      return;
-    }
-
     try {
       const response = await api.delete(`/jobs/${jobId}`);
 
       if (response.data.success) {
         setJobs(jobs.filter(j => j.job_id !== jobId));
+        message.success('岗位已删除');
       } else {
         setError('删除失败');
       }
@@ -370,13 +368,18 @@ const JobManagement = () => {
                     >
                       编辑
                     </Button>
-                    <Button
-                      size="small"
-                      danger
-                      onClick={() => handleDelete(job.job_id)}
+                    <Popconfirm
+                      title="删除岗位"
+                      description="确定要删除这个岗位吗？此操作不可恢复。"
+                      onConfirm={() => handleDelete(job.job_id)}
+                      okText="确认删除"
+                      cancelText="取消"
+                      okButtonProps={{ danger: true }}
                     >
-                      删除
-                    </Button>
+                      <Button size="small" danger>
+                        删除
+                      </Button>
+                    </Popconfirm>
                   </Space>
                 </div>
               </Card>

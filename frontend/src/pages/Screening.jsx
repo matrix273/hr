@@ -21,7 +21,8 @@ import {
   Divider,
   Collapse,
   Tooltip,
-  Dropdown
+  Dropdown,
+  Popconfirm
 } from 'antd';
 
 const { Title, Text } = Typography;
@@ -474,10 +475,6 @@ const Screening = () => {
       return;
     }
 
-    if (!window.confirm(`确定要删除选中的 ${selectedHistory.length} 条历史记录吗？`)) {
-      return;
-    }
-
     try {
       const response = await api.post('/screening/batch-delete', {
         result_ids: selectedHistory
@@ -494,6 +491,7 @@ const Screening = () => {
         setSelectedResults(selectedResults.filter(id => !deletedResumeIds.includes(id)));
         setSelectAllResults(false);
         setError('');
+        message.success('历史记录已删除');
       } else {
         setError('批量删除失败');
       }
@@ -1173,13 +1171,18 @@ const Screening = () => {
                   
                   {/* 删除按钮 */}
                   {showHistory && selectedHistory.length > 0 && (
-                    <Button
-                      danger
-                      icon={<DeleteOutlined />}
-                      onClick={handleBatchDeleteHistory}
+                    <Popconfirm
+                      title="批量删除"
+                      description={`确定要删除选中的 ${selectedHistory.length} 条历史记录吗？`}
+                      onConfirm={handleBatchDeleteHistory}
+                      okText="确认删除"
+                      cancelText="取消"
+                      okButtonProps={{ danger: true }}
                     >
-                      删除选中 ({selectedHistory.length})
-                    </Button>
+                      <Button danger icon={<DeleteOutlined />}>
+                        删除选中 ({selectedHistory.length})
+                      </Button>
+                    </Popconfirm>
                   )}
 
                   {/* 按匹配度排序按钮 */}

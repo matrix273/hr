@@ -19,6 +19,7 @@ import {
   Switch,
   Tag,
   Space,
+  Popconfirm,
   Typography,
   Alert,
   Card,
@@ -145,14 +146,11 @@ const UserManagement = () => {
       return;
     }
 
-    if (!window.confirm(`确定要删除用户 "${user.username}" 吗？`)) {
-      return;
-    }
-
     try {
       await api.delete(`/users/${user.id}`);
       setUsers(users.filter(u => u.id !== user.id));
       setError('');
+      message.success(`用户「${user.username}」已删除`);
     } catch (err) {
       setError(err.response?.data?.detail || '删除用户失败');
     }
@@ -297,18 +295,27 @@ const UserManagement = () => {
             </Tooltip>
           )}
           {shouldShowElement(Permission.USER_DELETE) && (
-            <Tooltip title={getPermissionHint(Permission.USER_DELETE)}>
-              <Button
-                type="primary"
-                danger
-                size="small"
-                icon={<DeleteOutlined />}
-                onClick={() => handleDelete(user)}
-                disabled={isButtonDisabled(Permission.USER_DELETE) || user.username === getCurrentUser()?.username}
-              >
-                删除
-              </Button>
-            </Tooltip>
+            <Popconfirm
+              title="删除用户"
+              description={`确定要删除用户「${user.username}」吗？此操作不可恢复。`}
+              onConfirm={() => handleDelete(user)}
+              okText="确认删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              disabled={isButtonDisabled(Permission.USER_DELETE) || user.username === getCurrentUser()?.username}
+            >
+              <Tooltip title={getPermissionHint(Permission.USER_DELETE)}>
+                <Button
+                  type="primary"
+                  danger
+                  size="small"
+                  icon={<DeleteOutlined />}
+                  disabled={isButtonDisabled(Permission.USER_DELETE) || user.username === getCurrentUser()?.username}
+                >
+                  删除
+                </Button>
+              </Tooltip>
+            </Popconfirm>
           )}
         </Space>
       ),

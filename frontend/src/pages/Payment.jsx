@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
     Card, Button, Badge, Space, Spin, Empty, Typography, Tag,
-    InputNumber, Tooltip, Divider, Modal
+    InputNumber, Tooltip, Divider, Modal, message
 } from 'antd';
 import {
     CheckCircleOutlined, LoadingOutlined, QrcodeOutlined,
@@ -105,7 +105,7 @@ const PaymentPage = () => {
 
     const createPayment = async () => {
         if (!selectedPlan || !selectedMethod) {
-            alert('请选择套餐和支付方式');
+            message.warning('请选择套餐和支付方式');
             return;
         }
 
@@ -123,12 +123,12 @@ const PaymentPage = () => {
             } else {
                 setPaymentStatus('failed');
                 setPaymentStatus('idle');
-                alert(data.detail || '创建支付失败');
+                message.error(data.detail || '创建支付失败');
             }
         } catch (error) {
             setPaymentStatus('idle');
             console.error('创建支付失败:', error);
-            alert('创建支付失败');
+            message.error('创建支付失败');
         }
     };
 
@@ -175,13 +175,12 @@ const PaymentPage = () => {
                 setPaymentStatus('success');
                 await fetchUserInfo();
                 await fetchOrders();
-                alert('支付确认成功！');
             } else {
-                alert(confirmData.detail || '支付确认失败');
+                message.error(confirmData.detail || '支付确认失败');
             }
         } catch (error) {
             console.error('确认支付失败:', error);
-            alert('操作失败，请重试');
+            message.error('操作失败，请重试');
         }
     };
 

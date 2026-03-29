@@ -9,7 +9,7 @@ import {
   shouldShowElement,
   getPermissionHint 
 } from '../utils/permissions';
-import { Typography } from 'antd';
+import { Typography, Modal, Popconfirm } from 'antd';
 
 const { Title } = Typography;
 
@@ -90,10 +90,6 @@ const ResumeList = ({ onUploadSuccess }) => {
   }, [previewResume]);
 
   const handleDelete = async (resumeId) => {
-    if (!window.confirm('确定要删除这个简历吗？')) {
-      return;
-    }
-
     try {
       const response = await api.delete(`/resumes/${resumeId}`);
 
@@ -127,10 +123,6 @@ const ResumeList = ({ onUploadSuccess }) => {
   const handleBatchDelete = async () => {
     if (selectedResumes.length === 0) {
       setError('请先选择要删除的简历');
-      return;
-    }
-
-    if (!window.confirm(`确定要删除选中的 ${selectedResumes.length} 个简历吗？`)) {
       return;
     }
 
@@ -213,14 +205,22 @@ const ResumeList = ({ onUploadSuccess }) => {
         <Title level={2} style={{ margin: 0, color: '#262626' }}>简历管理</Title>
         <div style={styles.headerActions}>
           {shouldShowElement(Permission.RESUME_DELETE) && selectedResumes.length > 0 && (
-            <button 
-              style={getButtonStyle(Permission.RESUME_DELETE, styles.batchDeleteButton)}
-              onClick={handleBatchDelete}
-              disabled={isButtonDisabled(Permission.RESUME_DELETE)}
-              title={getPermissionHint(Permission.RESUME_DELETE)}
+            <Popconfirm
+              title="批量删除简历"
+              description={`确定要删除选中的 ${selectedResumes.length} 个简历吗？`}
+              onConfirm={handleBatchDelete}
+              okText="确认删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
             >
-              删除选中 ({selectedResumes.length})
-            </button>
+              <button 
+                style={getButtonStyle(Permission.RESUME_DELETE, styles.batchDeleteButton)}
+                disabled={isButtonDisabled(Permission.RESUME_DELETE)}
+                title={getPermissionHint(Permission.RESUME_DELETE)}
+              >
+                删除选中 ({selectedResumes.length})
+              </button>
+            </Popconfirm>
           )}
           {shouldShowElement(Permission.RESUME_READ) && (
             <button 
@@ -320,17 +320,25 @@ const ResumeList = ({ onUploadSuccess }) => {
                       </button>
                     )}
                     {shouldShowElement(Permission.RESUME_DELETE) && (
-                      <button
-                        style={getButtonStyle(Permission.RESUME_DELETE, styles.deleteButton)}
-                        onClick={(e) => {
-                          e.stopPropagation();
+                      <Popconfirm
+                        title="删除简历"
+                        description="确定要删除这个简历吗？此操作不可恢复。"
+                        onConfirm={(e) => {
+                          e?.stopPropagation();
                           handleDelete(resume.resume_id);
                         }}
-                        disabled={isButtonDisabled(Permission.RESUME_DELETE)}
-                        title={getPermissionHint(Permission.RESUME_DELETE)}
+                        okText="确认删除"
+                        cancelText="取消"
+                        okButtonProps={{ danger: true }}
                       >
-                        删除
-                      </button>
+                        <button
+                          style={getButtonStyle(Permission.RESUME_DELETE, styles.deleteButton)}
+                          disabled={isButtonDisabled(Permission.RESUME_DELETE)}
+                          title={getPermissionHint(Permission.RESUME_DELETE)}
+                        >
+                          删除
+                        </button>
+                      </Popconfirm>
                     )}
                   </div>
                 </div>
