@@ -59,16 +59,23 @@ def _check_notify_sign(post_data: dict, key: str) -> bool:
     sign = post_data.get("sign", "")
     if not sign:
         return False
+    # 只有文档中标注"是"的必传参数才参与签名
     params_dict = {
         "code": post_data.get("code"),
+        "money": post_data.get("money"),
+        "mchId": post_data.get("mchId"),
         "orderNo": post_data.get("orderNo"),
         "outTradeNo": post_data.get("outTradeNo"),
         "payNo": post_data.get("payNo"),
-        "money": post_data.get("money"),
-        "mchId": post_data.get("mchId"),
-        "payChannel": post_data.get("payChannel"),
     }
-    return _get_sign(params_dict, key) == sign
+    # 调试：计算签名并记录，便于排查签名不一致问题
+    cleaned = _remove_empty(params_dict)
+    sorted_params = _key_sort(cleaned)
+    sign_str = "&".join(f"{k}={sorted_params[k]}" for k in sorted_params) + f"&key={key}"
+    computed_sign = hashlib.md5(sign_str.encode("utf-8")).hexdigest().upper()
+    logger.info(f"签名调试 | 待签名字符串: {sign_str}")
+    logger.info(f"签名调试 | 计算签名: {computed_sign} | 收到签名: {sign}")
+    return computed_sign == sign
 
 
 class YunGouOSService:
