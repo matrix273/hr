@@ -204,10 +204,7 @@ const CompanyManagement = () => {
   const getRoleLabel = (role) => {
     const roleMap = {
       admin: '管理员',
-      manager: '经理',
       hr: '人力资源',
-      recruiter: '招聘专员',
-      interviewer: '面试官',
       user: '普通用户'
     };
     return roleMap[role] || role;

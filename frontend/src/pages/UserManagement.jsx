@@ -58,10 +58,7 @@ const UserManagement = () => {
 
   const roles = [
     { value: 'admin', label: '管理员' },
-    { value: 'manager', label: '经理' },
     { value: 'hr', label: '人力资源' },
-    { value: 'recruiter', label: '招聘专员' },
-    { value: 'interviewer', label: '面试官' },
     { value: 'user', label: '普通用户' }
   ];
 

@@ -22,7 +22,8 @@ import {
   Collapse,
   Tooltip,
   Dropdown,
-  Popconfirm
+  Popconfirm,
+  message
 } from 'antd';
 
 const { Title, Text } = Typography;
@@ -262,7 +263,7 @@ const Screening = () => {
     }
     
     if (currentSelectedData.length === 0) {
-      setError('请先选择要导出的结果');
+      message.warning('请先选择要导出的结果');
       return;
     }
 
@@ -273,7 +274,7 @@ const Screening = () => {
         await exportToMarkdown(currentSelectedData);
       }
     } catch (error) {
-      setError('导出失败：' + error.message);
+      message.error('导出失败：' + error.message);
     }
   };
 
@@ -286,8 +287,7 @@ const Screening = () => {
       // 如果没有result_id（新结果），使用Markdown格式导出
       if (resultIds.length === 0) {
         console.log('新结果导出：使用Markdown格式');
-        setError('提示：新筛选结果已导出为Markdown格式（历史记录支持PDF导出）');
-        setTimeout(() => setError(''), 3000);
+        message.info('提示：新筛选结果已导出为Markdown格式（历史记录支持PDF导出）');
         
         const markdownContent = exportToMarkdownContent(data);
         const blob = new Blob([markdownContent], { type: 'text/markdown;charset=utf-8' });
@@ -340,18 +340,15 @@ const Screening = () => {
       link.remove();
       window.URL.revokeObjectURL(url);
       
-      setError('');
-      
     } catch (error) {
       console.error('PDF导出失败:', error);
       
       // 如果后端导出失败，降级为Markdown格式
       if (error.response?.status === 404) {
-        setError('后端PDF服务暂不可用，已切换为Markdown格式');
+        message.warning('后端PDF服务暂不可用，已切换为Markdown格式');
       } else {
-        setError(`PDF导出失败: ${error.response?.data?.detail || error.message}，已切换为Markdown格式`);
+        message.warning(`PDF导出失败: ${error.response?.data?.detail || error.message}，已切换为Markdown格式`);
       }
-      setTimeout(() => setError(''), 5000);
       
       // 降级方案：导出Markdown
       const markdownContent = exportToMarkdownContent(data);
@@ -471,7 +468,7 @@ const Screening = () => {
 
   const handleBatchDeleteHistory = async () => {
     if (selectedHistory.length === 0) {
-      setError('请先选择要删除的历史记录');
+      message.warning('请先选择要删除的历史记录');
       return;
     }
 
@@ -493,10 +490,10 @@ const Screening = () => {
         setError('');
         message.success('历史记录已删除');
       } else {
-        setError('批量删除失败');
+        message.error('批量删除失败');
       }
     } catch (err) {
-      setError(err.response?.data?.detail || '批量删除失败');
+      message.error(err.response?.data?.detail || '批量删除失败');
     }
   };
 
@@ -613,7 +610,7 @@ const Screening = () => {
       // 验证岗位选择
       const currentJob = useJobId ? selectedJob : filterJob;
       if (!currentJob) {
-        setError('请选择岗位');
+        message.warning('请选择岗位');
         setLoading(false);
         return;
       }
@@ -622,14 +619,14 @@ const Screening = () => {
         await streamScreeningResults(currentJob.job_id, null, timeRange, onlyUnscreened);
       } else {
         if (!jobDescription.trim()) {
-          setError('请输入职位描述');
+          message.warning('请输入职位描述');
           setLoading(false);
           return;
         }
         await streamScreeningResults(null, jobDescription, timeRange, onlyUnscreened);
       }
     } catch (err) {
-      setError(err.response?.data?.detail || '筛选失败');
+      message.error(err.response?.data?.detail || '筛选失败');
       setLoading(false);
     }
   };
@@ -690,7 +687,7 @@ const Screening = () => {
               const data = JSON.parse(line.slice(6));
 
               if (data.type === 'error') {
-                setError(data.message);
+                message.error(data.message);
                 setLoading(false);
                 setCurrentProgress(null);
                 return;
@@ -728,7 +725,7 @@ const Screening = () => {
                 setLoading(false);
                 setCurrentProgress(null);
                 if (data.count === 0) {
-                  setError('未找到匹配的简历');
+                  message.warning('未找到匹配的简历');
                 }
                 return;
               }
@@ -739,7 +736,7 @@ const Screening = () => {
         }
       }
     } catch (err) {
-      setError(err.message || '筛选失败');
+      message.error(err.message || '筛选失败');
       setLoading(false);
       setCurrentProgress(null);
     }
@@ -879,10 +876,10 @@ const Screening = () => {
         setPreviewUrl(url);
         setPreviewResume({ resume_id: resumeId, filename });
       } else {
-        setError('加载简历失败');
+        message.error('加载简历失败');
       }
     } catch (err) {
-      setError('加载简历失败');
+      message.error('加载简历失败');
     }
   };
 
@@ -1058,8 +1055,6 @@ const Screening = () => {
                   />
                 </div>
               )}
-
-              {error && <Alert message={error} type="error" style={{ marginBottom: 16 }} />}
 
               <div ref={startScreenButtonRef}>
                 <Button
@@ -1255,7 +1250,7 @@ const Screening = () => {
                       <div style={styles.empty}>
                         <div style={styles.emptyIcon}>🔍</div>
                         <p style={styles.emptyText}>
-                          {error ? '未找到匹配的简历' : '选择岗位或输入描述后开始筛选'}
+                          {'选择岗位或输入描述后开始筛选'}
                         </p>
                       </div>
                     );

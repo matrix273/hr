@@ -275,8 +275,8 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
             detail=f"无效的角色，可选值: {[r.value for r in Role]}"
         )
 
-    # 禁止注册 admin 和 manager
-    if user.role.lower() in ["admin", "manager"]:
+    # 禁止注册 admin
+    if user.role.lower() == "admin":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="不允许注册此角色"

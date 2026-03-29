@@ -313,6 +313,10 @@ class MilvusVectorDB:
             if only_unscreened and formatted_results:
                 formatted_results = await self._verify_unscreened(formatted_results)
 
+            # 按简历 ID 去重：同一简历的主记录和 chunk 可能同时出现，
+            # 只保留向量距离最近的一条，避免 chunk 进入后续流程
+            formatted_results = self._deduplicate_by_resume(formatted_results)
+
             # 截取 top_k
             formatted_results = formatted_results[:top_k]
 
@@ -322,6 +326,35 @@ class MilvusVectorDB:
         except Exception as e:
             logger.error(f"向量搜索失败: {e}")
             return []
+
+    @staticmethod
+    def _deduplicate_by_resume(
+        search_results: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """按真实简历 ID 去重，保留向量距离最近的记录
+
+        Milvus 中同一简历有主记录和多个 chunk 记录，
+        向量搜索会同时返回它们。去重确保后续 Reranker
+        只处理不重复的简历，避免 chunk ID 查 PG 不存在。
+
+        Args:
+            search_results: Milvus 搜索结果
+
+        Returns:
+            去重后的结果（按距离升序）
+        """
+        best: dict[str, Dict[str, Any]] = {}
+        for r in search_results:
+            rid = r["resume_id"]
+            # 提取真实简历 ID（去掉 _chunk_N 后缀）
+            real_id = rid.split("_chunk_")[0]
+            if real_id not in best or r["distance"] < best[real_id]["distance"]:
+                best[real_id] = r
+        deduped = sorted(best.values(), key=lambda x: x["distance"])
+        removed = len(search_results) - len(deduped)
+        if removed > 0:
+            logger.info(f"简历去重: 从 {len(search_results)} 条中去除 {removed} 条重复/分块记录")
+        return deduped
 
     async def _verify_unscreened(
         self, search_results: List[Dict[str, Any]]

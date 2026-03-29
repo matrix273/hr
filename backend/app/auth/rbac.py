@@ -9,10 +9,7 @@ from .jwt import get_current_user
 class Role(str, Enum):
     """用户角色枚举"""
     ADMIN = "admin"  # 管理员
-    MANAGER = "manager"  # 经理
     HR = "hr"  # 人力资源
-    RECRUITER = "recruiter"  # 招聘专员
-    INTERVIEWER = "interviewer"  # 面试官
     USER = "user"  # 普通用户
 
 
@@ -88,68 +85,33 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.COMPANY_UPDATE,
         Permission.COMPANY_DELETE,
     },
-    Role.MANAGER: {
-        # 简历管理 - 可读取、创建、更新，删除需审批
+    Role.HR: {
+        # 简历管理 - 完整权限
         Permission.RESUME_READ,
         Permission.RESUME_CREATE,
         Permission.RESUME_UPDATE,
+        Permission.RESUME_DELETE,
         # 岗位管理 - 完整权限
         Permission.JOB_READ,
         Permission.JOB_CREATE,
         Permission.JOB_UPDATE,
         Permission.JOB_DELETE,
-        # 筛选管理 - 可执行和查看，删除需审批
+        # 筛选管理 - 完整权限
         Permission.SCREENING_READ,
         Permission.SCREENING_EXECUTE,
-        # 用户管理 - 可查看和更新用户信息
+        Permission.SCREENING_DELETE,
+        # 用户管理 - 可查看和更新非管理员用户
         Permission.USER_READ,
         Permission.USER_UPDATE,
         # 报表统计 - 可查看报表
         Permission.REPORT_READ,
-    },
-    Role.HR: {
-        # 简历管理 - 可读取、创建、更新，删除需审批
-        Permission.RESUME_READ,
-        Permission.RESUME_CREATE,
-        Permission.RESUME_UPDATE,
-        # 岗位管理 - 可创建和修改岗位，删除需审批
-        Permission.JOB_READ,
-        Permission.JOB_CREATE,
-        Permission.JOB_UPDATE,
-        # 筛选管理 - 可执行和查看筛选
-        Permission.SCREENING_READ,
-        Permission.SCREENING_EXECUTE,
-        # 用户管理 - 仅可查看和更新非管理员用户
-        Permission.USER_READ,
-        Permission.USER_UPDATE,
-        # 报表统计 - 可查看报表
-        Permission.REPORT_READ,
-    },
-    Role.RECRUITER: {
-        # 简历管理 - 可读取和上传简历
-        Permission.RESUME_READ,
-        Permission.RESUME_CREATE,
-        # 岗位管理 - 可查看岗位信息
-        Permission.JOB_READ,
-        # 筛选管理 - 可执行和查看筛选结果
-        Permission.SCREENING_READ,
-        Permission.SCREENING_EXECUTE,
-    },
-    Role.INTERVIEWER: {
-        # 简历管理 - 可查看简历
-        Permission.RESUME_READ,
-        # 岗位管理 - 可查看岗位信息
-        Permission.JOB_READ,
-        # 筛选管理 - 可查看筛选结果
-        Permission.SCREENING_READ,
     },
     Role.USER: {
-        # 简历管理 - 可查看自己的简历
+        # 简历管理 - 可查看和上传简历
         Permission.RESUME_READ,
+        Permission.RESUME_CREATE,
         # 岗位管理 - 可查看岗位信息
         Permission.JOB_READ,
-        # 筛选管理 - 可执行筛选（受套餐配额约束）
-        Permission.SCREENING_EXECUTE,
     },
 }
 

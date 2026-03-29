@@ -3,7 +3,7 @@
 配额规则：
 - 有公司的用户 → 配额按公司维度聚合（公司所有成员共享）
 - 无公司的用户 → 配额按个人维度（保持原有逻辑）
-- admin/manager → 不受限制
+- admin → 不受限制
 """
 
 from datetime import datetime, timezone
@@ -103,13 +103,19 @@ async def _get_effective_plan(user: User, db: AsyncSession) -> tuple[str | None,
                 }
 
     # 个人订阅
+    plan_id = user.subscription_plan or "free"
+    # 检查个人订阅是否过期
+    if (plan_id != "free"
+            and user.subscription_expires
+            and user.subscription_expires <= datetime.now(timezone.utc)):
+        user.subscription_plan = "free"
+        user.subscription_expires = None
+        plan_id = "free"
+        await db.commit()
     plan_result = await db.execute(
-        select(SubscriptionPlan).where(
-            SubscriptionPlan.id == (user.subscription_plan or "free")
-        )
+        select(SubscriptionPlan).where(SubscriptionPlan.id == plan_id)
     )
     plan = plan_result.scalar_one_or_none()
-    plan_id = user.subscription_plan or "free"
     if plan:
         return plan_id, {
             "id": plan.id,
@@ -200,7 +206,7 @@ async def check_screening_quota(
     Returns:
         (是否允许, 错误信息) 允许时错误信息为空字符串
     """
-    if user.role in ("admin", "manager"):
+    if user.role == "admin":
         return True, ""
 
     plan_id, plan = await _get_effective_plan(user, db)
@@ -237,7 +243,7 @@ async def check_job_quota(
     Returns:
         (是否允许, 错误信息)
     """
-    if user.role in ("admin", "manager"):
+    if user.role == "admin":
         return True, ""
 
     plan_id, plan = await _get_effective_plan(user, db)

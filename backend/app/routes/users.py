@@ -105,12 +105,9 @@ async def list_users(
             User.company_id == me.company_id
         ).order_by(User.created_at.desc())
 
-        # HR和经理不能看到管理员账号
-        if user_role in [Role.HR, Role.MANAGER]:
+        # HR不能看到管理员账号
+        if user_role == Role.HR:
             query = query.where(User.role != Role.ADMIN)
-        # 招聘专员和面试官只能看到普通用户
-        elif user_role in [Role.RECRUITER, Role.INTERVIEWER]:
-            query = query.where(User.role == Role.USER)
         # 普通用户不能查看用户列表
         elif user_role == Role.USER:
             raise HTTPException(
@@ -775,7 +772,7 @@ async def delete_user(
 
 
 # 禁止注册的角色
-FORBIDDEN_REGISTER_ROLES = ["admin", "manager"]
+FORBIDDEN_REGISTER_ROLES = ["admin"]
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -783,7 +780,7 @@ async def register(
     user_data: UserRegister,
     db: AsyncSession = Depends(get_db)
 ):
-    """用户注册（无需认证，但不能注册 admin 和 manager 角色）"""
+    """用户注册（无需认证，但不能注册 admin 角色）"""
     # 检查用户名是否已存在
     result = await db.execute(select(User).where(User.username == user_data.username))
     if result.scalar_one_or_none():

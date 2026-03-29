@@ -124,6 +124,7 @@ async def screen_resumes(
             yield f"data: {json.dumps({'type': 'start', 'total': len(reranked)})}\n\n"
 
             # 逐个评估简历并流式返回
+            returned_count = 0
             successful_results = []  # 记录成功的评估结果
             # 使用描述哈希生成稳定的 custom_job_id，用于缓存匹配
             desc_hash = hashlib.md5(request.job_description.encode("utf-8")).hexdigest()[:16]
@@ -179,6 +180,7 @@ async def screen_resumes(
                         "cached": True
                     }
                     successful_results.append(result)
+                    returned_count += 1
                     yield f"data: {json.dumps(result)}\n\n"
                     continue
 
@@ -269,16 +271,49 @@ async def screen_resumes(
                         yield f"data: {json.dumps(result)}\n\n"
                         
                     else:
+                        # LLM 评估失败：降级返回（与岗位筛选模式一致）
                         logger.warning(f"简历 {resume_info['resume_id']} LLM 评估失败: {llm_result['message']}")
-                        continue
+                        llm_content = f"LLM评估失败: {llm_result['message']}"
+                        matching_score = 0
+                        # 降级返回不标记为已筛选，下次可重新评估
+                        result = {
+                            "type": "result",
+                            "index": len(successful_results) + 1,
+                            "total": len(reranked),
+                            "resume_id": resume_info["resume_id"],
+                            "filename": resume.original_filename,
+                            "file_size": resume.file_size,
+                            "created_at": int(resume.created_at.timestamp()) if resume.created_at else None,
+                            "rerank_score": item["score"],
+                            "llm_evaluation": llm_content,
+                            "matching_score": matching_score,
+                            "evaluation_failed": True
+                        }
+                        successful_results.append(result)
+                        yield f"data: {json.dumps(result)}\n\n"
                         
                 except Exception as e:
+                    # LLM 评估异常：同样降级返回
                     logger.error(f"简历 {resume_info['resume_id']} LLM 评估异常: {e}")
-                    continue
+                    result = {
+                        "type": "result",
+                        "index": len(successful_results) + 1,
+                        "total": len(reranked),
+                        "resume_id": resume_info["resume_id"],
+                        "filename": resume.original_filename if resume else "未知",
+                        "file_size": resume.file_size if resume else 0,
+                        "created_at": int(resume.created_at.timestamp()) if resume and resume.created_at else None,
+                        "rerank_score": item["score"],
+                        "llm_evaluation": f"评估异常: {str(e)}",
+                        "matching_score": 0,
+                        "evaluation_failed": True
+                    }
+                    successful_results.append(result)
+                    yield f"data: {json.dumps(result)}\n\n"
 
             # 完成
-            yield f"data: {json.dumps({'type': 'done', 'count': len(reranked)})}\n\n"
-            logger.info(f"自定义描述筛选完成, 找到 {len(reranked)} 个匹配结果, 用户: {current_user['username']}")
+            yield f"data: {json.dumps({'type': 'done', 'count': len(successful_results)})}\n\n"
+            logger.info(f"自定义描述筛选完成, 返回 {len(successful_results)} 个结果, 用户: {current_user['username']}")
 
         except Exception as e:
             logger.error(f"自定义描述筛选简历失败: {e}", exc_info=True)
@@ -569,6 +604,7 @@ async def screen_resumes_by_job(
             yield f"data: {json.dumps({'type': 'start', 'total': len(reranked)})}\n\n"
 
             # 逐个评估简历并流式返回
+            returned_count = 0
             for idx, item in enumerate(reranked):
                 resume_idx = item["index"]
                 resume_info = search_results[resume_idx]
@@ -581,6 +617,7 @@ async def screen_resumes_by_job(
                 resume = query_result.scalar_one_or_none()
 
                 if not resume:
+                    logger.warning(f"简历 {resume_id} 在数据库中不存在，跳过（可能为 chunk 记录）")
                     continue
 
                 # 发送进度更新事件
@@ -621,6 +658,7 @@ async def screen_resumes_by_job(
                         "matching_score": cached_result.matching_score,
                         "cached": True
                     }
+                    returned_count += 1
                     yield f"data: {json.dumps(result)}\n\n"
                     continue
 
@@ -717,11 +755,12 @@ async def screen_resumes_by_job(
                     "matching_score": matching_score
                 }
 
+                returned_count += 1
                 yield f"data: {json.dumps(result)}\n\n"
 
             # 完成
-            yield f"data: {json.dumps({'type': 'done', 'count': len(reranked)})}\n\n"
-            logger.info(f"根据岗位筛选完成, 岗位: {job.title}, 找到 {len(reranked)} 个匹配结果")
+            yield f"data: {json.dumps({'type': 'done', 'count': returned_count})}\n\n"
+            logger.info(f"根据岗位筛选完成, 岗位: {job.title}, 返回 {returned_count} 个结果")
 
         except Exception as e:
             logger.error(f"根据岗位筛选简历失败: {e}", exc_info=True)

@@ -1,6 +1,7 @@
 """支付路由 - 基于 YunGouOS 微信收银台支付"""
 
 from datetime import datetime, timezone, timedelta
+import re
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -336,7 +337,12 @@ async def _activate_subscription(order: PaymentOrder, db: AsyncSession):
     plan = plan_result.scalar_one_or_none()
     expires = None
     if plan and plan.duration_days > 0:
-        expires = datetime.now(timezone.utc) + timedelta(days=plan.duration_days)
+        # 从订单名称中解析购买月数（格式: "基础版 x3个月"）
+        quantity = 1
+        match = re.search(r"x(\d+)个月", order.product_name or "")
+        if match:
+            quantity = int(match.group(1))
+        expires = datetime.now(timezone.utc) + timedelta(days=plan.duration_days * quantity)
 
     # 查询订单所属用户
     user_result = await db.execute(select(User).where(User.id == order.user_id))
@@ -357,13 +363,19 @@ async def _activate_subscription(order: PaymentOrder, db: AsyncSession):
             if base < datetime.now(timezone.utc):
                 base = datetime.now(timezone.utc)
             company.subscription_plan = order.product_id
-            company.subscription_expires = base + timedelta(days=plan.duration_days) if plan else None
+            company.subscription_expires = (
+                base + timedelta(days=plan.duration_days * quantity)
+                if plan else None
+            )
     else:
         base = user.subscription_expires or datetime.now(timezone.utc)
         if base < datetime.now(timezone.utc):
             base = datetime.now(timezone.utc)
         user.subscription_plan = order.product_id
-        user.subscription_expires = base + timedelta(days=plan.duration_days) if plan else None
+        user.subscription_expires = (
+            base + timedelta(days=plan.duration_days * quantity)
+            if plan else None
+        )
 
     await db.commit()
     await db.refresh(order)
