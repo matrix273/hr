@@ -44,6 +44,7 @@ dependencies = [
     "python-levenshtein>=0.27.3",
     "markdown>=3.10.2",
     "beautifulsoup4>=4.14.3",
+    "captcha>=0.7.1",
 ]
 
 [dependency-groups]

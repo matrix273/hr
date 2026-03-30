@@ -294,3 +294,17 @@ VALUES
     ('addon_resume_500', '筛选简历加量包(500份)', '一次性额外增加500份AI筛选简历配额', 199, 30, 0, 0, TRUE, FALSE, TRUE, FALSE, 'addon', 500, 0),
     ('addon_job_10',     '岗位加量包(10个)',      '一次性额外增加10个岗位发布配额',    29,  30, 0, 0, TRUE, FALSE, TRUE, FALSE, 'addon', 0,   10)
 ON CONFLICT (id) DO NOTHING;
+
+-- 默认管理员账号（密码: callofai2026!，ON CONFLICT 保证可重复执行）
+-- 若需重新生成密码哈希: uv run python -c "from passlib.context import CryptContext; print(CryptContext(schemes=['bcrypt'], deprecated='auto').hash('callofai2026!'))"
+INSERT INTO users (id, username, email, password_hash, full_name, role, is_active)
+VALUES (
+    'admin-default-001',
+    'admin',
+    'matrix273@gmail.com',
+    '$2b$12$lCRdd/uQEV35A16GDELiRuWOsMOjRoVORTBO5o4hweOgXax8m0jsK',
+    '系统管理员',
+    'admin',
+    TRUE
+)
+ON CONFLICT (id) DO NOTHING;

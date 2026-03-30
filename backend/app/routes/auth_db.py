@@ -1,6 +1,11 @@
 """基于数据库的认证和用户管理路由"""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import uuid
+import base64
+import random
+
+import redis
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,10 +21,36 @@ from ..auth import (
     Permission,
     require_permission
 )
+from ..config import REDIS_HOST, REDIS_PORT, REDIS_DB
 from ..utils.logger import logger
+from ..utils.fastapi_logger import get_client_ip
 from ..services.email_service import send_verification_code, verify_code
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+
+# ========== Redis 工具 ==========
+
+
+def _get_redis() -> redis.Redis:
+    """获取 Redis 连接"""
+    return redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
+
+
+# ========== 登录安全配置 ==========
+
+_CAPTCHA_EXPIRE = 300       # 验证码 5 分钟过期
+_LOGIN_FAIL_WINDOW = 900    # 失败计数窗口 15 分钟
+_LOGIN_FAIL_LIMIT = 5       # 触发验证码的失败次数
+_IP_LOCK_LIMIT = 10         # IP 锁定阈值
+_IP_LOCK_DURATION = 1800    # IP 锁定 30 分钟
+_ACCOUNT_LOCK_LIMIT = 8     # 账号锁定阈值
+_ACCOUNT_LOCK_DURATION = 3600  # 账号锁定 1 小时
+
+
+def _gen_captcha_text(length: int = 4) -> str:
+    """生成图形验证码文本（排除易混淆字符）"""
+    chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    return "".join(random.choices(chars, k=length))
 
 
 class UserCreate(BaseModel):
@@ -66,6 +97,8 @@ class UserLogin(BaseModel):
     """用户登录请求"""
     username: str
     password: str
+    captcha_id: Optional[str] = Field(None, description="图形验证码ID")
+    captcha_code: Optional[str] = Field(None, description="图形验证码")
 
 
 class TokenResponse(BaseModel):
@@ -306,10 +339,47 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
     }
 
 
+# ========== 图形验证码接口 ==========
+
+
+@router.get("/captcha")
+async def get_captcha():
+    """生成图形验证码，返回 captcha_id 和 base64 图片"""
+    captcha_id = str(uuid.uuid4())
+    text = _gen_captcha_text(4)
+
+    # 生成图片
+    from captcha.image import ImageCaptcha
+    generator = ImageCaptcha(width=120, height=40)
+    buf = generator.generate(text)
+    b64 = base64.b64encode(buf.getvalue()).decode()
+
+    # 存入 Redis
+    r = _get_redis()
+    r.setex(f"captcha:{captcha_id}", _CAPTCHA_EXPIRE, text.lower())
+
+    return {"captcha_id": captcha_id, "captcha_image": f"data:image/png;base64,{b64}"}
+
+
+# ========== 登录接口（含安全防护） ==========
+
+
 @router.post("/login", response_model=TokenResponse)
-async def login(user_login: UserLogin, db: AsyncSession = Depends(get_db)):
-    """用户登录"""
-    # 查找用户（通过用户名或邮箱）
+async def login(user_login: UserLogin, request: Request, db: AsyncSession = Depends(get_db)):
+    """用户登录（含验证码校验、失败计数、IP/账号锁定）"""
+    client_ip = get_client_ip(request) or "unknown"
+    r = _get_redis()
+
+    # --- 1. 检查 IP 是否被锁定 ---
+    ip_lock_key = f"login_lock:{client_ip}"
+    ip_lock_ttl = r.ttl(ip_lock_key)
+    if ip_lock_ttl > 0:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"该 IP 登录失败次数过多，请 {ip_lock_ttl} 秒后再试",
+        )
+
+    # --- 2. 查找用户 ---
     result = await db.execute(
         select(User).where(
             (User.username == user_login.username) | (User.email == user_login.username)
@@ -317,25 +387,62 @@ async def login(user_login: UserLogin, db: AsyncSession = Depends(get_db)):
     )
     user = result.scalar_one_or_none()
 
+    # --- 3. 检查账号是否被锁定 ---
+    if user:
+        acct_lock_key = f"login_lock_account:{user.username}"
+        acct_lock_ttl = r.ttl(acct_lock_key)
+        if acct_lock_ttl > 0:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"该账号已被临时锁定，请 {acct_lock_ttl} 秒后再试",
+            )
+
+    # --- 4. 检查是否需要验证码 ---
+    ip_fail_key = f"login_fail:{client_ip}"
+    ip_fail_count = int(r.get(ip_fail_key) or 0)
+    need_captcha = ip_fail_count >= _LOGIN_FAIL_LIMIT
+
+    if need_captcha:
+        if not user_login.captcha_id or not user_login.captcha_code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="请输入图形验证码",
+            )
+        # 校验验证码
+        captcha_key = f"captcha:{user_login.captcha_id}"
+        stored = r.get(captcha_key)
+        # 无论是否匹配，验证后立即删除（一次性使用）
+        r.delete(captcha_key)
+        if not stored or stored != user_login.captcha_code.lower().strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="图形验证码错误或已过期",
+            )
+
+    # --- 5. 验证用户和密码 ---
     if not user:
+        _record_login_fail(r, client_ip, ip_fail_key, ip_fail_count)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="用户名或密码错误"
+            detail="用户名或密码错误",
         )
 
-    # 检查用户是否激活
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="用户已被禁用"
+            detail="用户已被禁用",
         )
 
-    # 验证密码
     if not verify_password(user_login.password, user.password_hash):
+        _record_login_fail(r, client_ip, ip_fail_key, ip_fail_count, username=user.username)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="用户名或密码错误"
+            detail="用户名或密码错误",
         )
+
+    # --- 6. 登录成功：清除失败计数 ---
+    r.delete(ip_fail_key)
+    r.delete(f"login_fail_account:{user.username}")
 
     # 获取用户权限
     from ..auth.rbac import get_role_permissions
@@ -351,7 +458,7 @@ async def login(user_login: UserLogin, db: AsyncSession = Depends(get_db)):
         }
     )
 
-    logger.info(f"用户登录: {user.username}")
+    logger.info(f"用户登录: {user.username}, IP: {client_ip}")
 
     return TokenResponse(
         access_token=access_token,
@@ -364,6 +471,39 @@ async def login(user_login: UserLogin, db: AsyncSession = Depends(get_db)):
             "company_id": user.company_id
         }
     )
+
+
+def _record_login_fail(
+    r: redis.Redis,
+    client_ip: str,
+    ip_fail_key: str,
+    ip_fail_count: int,
+    username: str | None = None,
+) -> None:
+    """记录登录失败，并在达到阈值时锁定 IP / 账号"""
+    # IP 失败计数
+    r.incr(ip_fail_key)
+    if ip_fail_count == 0:
+        r.expire(ip_fail_key, _LOGIN_FAIL_WINDOW)
+
+    new_count = ip_fail_count + 1
+
+    # IP 锁定
+    if new_count >= _IP_LOCK_LIMIT:
+        r.setex(f"login_lock:{client_ip}", _IP_LOCK_DURATION, "1")
+        logger.warning(f"IP 锁定: {client_ip}, 累计失败 {new_count} 次")
+
+    # 账号失败计数
+    if username:
+        acct_fail_key = f"login_fail_account:{username}"
+        acct_fail_count = int(r.incr(acct_fail_key))
+        if acct_fail_count == 1:
+            r.expire(acct_fail_key, _ACCOUNT_LOCK_DURATION)
+        if acct_fail_count >= _ACCOUNT_LOCK_LIMIT:
+            r.setex(
+                f"login_lock_account:{username}", _ACCOUNT_LOCK_DURATION, "1"
+            )
+            logger.warning(f"账号锁定: {username}, 累计失败 {acct_fail_count} 次")
 
 
 @router.get("/me", response_model=UserResponse)

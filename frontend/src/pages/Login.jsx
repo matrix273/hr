@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import { Form, Input, Button, Card, message, Typography, Space, Steps } from 'antd';
-import { ArrowLeftOutlined, MailOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Card, message, Typography, Space } from 'antd';
+import { ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 
@@ -20,7 +20,40 @@ const Login = () => {
   const [countdown, setCountdown] = useState(0);
   const [forgotInfo, setForgotInfo] = useState({ username: '', email: '' });
   const usernameWatch = Form.useWatch('username', forgotForm);
+
+  // 图形验证码相关状态
+  const [captchaId, setCaptchaId] = useState('');
+  const [captchaImage, setCaptchaImage] = useState('');
+  const [showCaptcha, setShowCaptcha] = useState(false);
+  const [lockSeconds, setLockSeconds] = useState(0);
+
   const navigate = useNavigate();
+
+  // 获取图形验证码
+  const fetchCaptcha = useCallback(async () => {
+    try {
+      const res = await api.get('/auth/captcha');
+      setCaptchaId(res.data.captcha_id);
+      setCaptchaImage(res.data.captcha_image);
+    } catch {
+      // 静默失败
+    }
+  }, []);
+
+  // IP 锁定倒计时
+  useEffect(() => {
+    if (lockSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setLockSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockSeconds]);
 
   // 忘记密码 - 校验用户名是否存在（失焦触发）
   const verifyUsernameExists = async (_, value) => {
@@ -149,11 +182,23 @@ const Login = () => {
   };
 
   const handleSubmit = async (values) => {
+    if (lockSeconds > 0) {
+      message.warning(`请 ${lockSeconds} 秒后再试`);
+      return;
+    }
+
     setLoading(true);
+
+    // 构建请求体，仅在显示验证码时携带
+    const body = { username: values.username, password: values.password };
+    if (showCaptcha) {
+      body.captcha_id = captchaId;
+      body.captcha_code = values.captcha_code;
+    }
 
     try {
       console.log('开始登录，用户名:', values.username);
-      const response = await api.post('/auth/login', values);
+      const response = await api.post('/auth/login', body);
       console.log('登录响应:', response.data);
       const { access_token, user } = response.data;
 
@@ -166,7 +211,25 @@ const Login = () => {
       window.location.href = '/app';
     } catch (err) {
       console.error('登录失败:', err);
-      message.error(err.response?.data?.detail || '登录失败，请检查用户名和密码');
+      const detail = err.response?.data?.detail || '登录失败，请检查用户名和密码';
+
+      // 429: IP 被锁定
+      if (err.response?.status === 429) {
+        setShowCaptcha(true);
+        const match = detail.match(/(\d+)\s*秒/);
+        if (match) setLockSeconds(parseInt(match[1], 10));
+        message.error(detail);
+      } else {
+        message.error(detail);
+      }
+
+      // 登录失败后显示验证码
+      if (!showCaptcha) {
+        setShowCaptcha(true);
+      }
+      fetchCaptcha();
+      // 清空验证码输入
+      form.setFieldValue('captcha_code', '');
     } finally {
       setLoading(false);
     }
@@ -379,6 +442,50 @@ const Login = () => {
               >
                 <Input.Password placeholder="请输入密码" />
               </Form.Item>
+
+              {showCaptcha && (
+                <Form.Item
+                  name="captcha_code"
+                  label="验证码"
+                  rules={[{ required: true, message: '请输入验证码' }]}
+                  style={{ marginBottom: 12 }}
+                  labelCol={{ style: { paddingBottom: 4 } }}
+                >
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <Input
+                      placeholder="请输入验证码"
+                      style={{ flex: 1 }}
+                      autoComplete="off"
+                    />
+                    {captchaImage && (
+                      <img
+                        src={captchaImage}
+                        alt="验证码"
+                        onClick={fetchCaptcha}
+                        style={{
+                          height: 40,
+                          cursor: 'pointer',
+                          borderRadius: 6,
+                          border: '1px solid #d9d9d9',
+                        }}
+                        title="点击刷新"
+                      />
+                    )}
+                    <Button
+                      icon={<ReloadOutlined />}
+                      onClick={fetchCaptcha}
+                      size="small"
+                      style={{ flexShrink: 0 }}
+                    />
+                  </div>
+                </Form.Item>
+              )}
+
+              {lockSeconds > 0 && (
+                <div style={{ marginBottom: 12, color: '#ff4d4f', fontSize: 13, textAlign: 'center' }}>
+                  登录失败次数过多，请 {Math.ceil(lockSeconds / 60)} 分 {lockSeconds % 60} 秒后再试
+                </div>
+              )}
 
               <Form.Item>
                 <Button
