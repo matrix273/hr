@@ -16,6 +16,7 @@ from ..auth import (
 )
 from ..auth.rbac import check_permission, get_role_permissions
 from ..utils.logger import logger
+from ..utils.fastapi_logger import get_client_ip
 
 router = APIRouter(prefix="/api/users", tags=["User Management"])
 
@@ -656,7 +657,7 @@ async def update_user(
             target_type="user",
             target_id=user_id,
             detail=json.dumps(changes, ensure_ascii=False, default=str),
-            ip_address=request.client.host if request.client else None,
+            ip_address=get_client_ip(request),
         )
         db.add(audit)
         await db.commit()

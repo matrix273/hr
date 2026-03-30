@@ -1,11 +1,42 @@
 """FastAPI 日志集成"""
 
 import time
+from typing import Optional
 from typing import Callable
 from fastapi import Request, Response
 from fastapi.routing import APIRoute
 from loguru import logger
 from .logger import setup_logger
+
+
+def get_client_ip(request: Request) -> Optional[str]:
+    """
+    从请求中获取真实客户端 IP 地址
+
+    优先读取 X-Forwarded-For / X-Real-IP 头（反向代理场景），
+    回退到 request.client.host（直连场景）。
+
+    Args:
+        request: FastAPI 请求对象
+
+    Returns:
+        客户端 IP 地址，无法获取时返回 None
+    """
+    # X-Forwarded-For 可能包含多个 IP，取第一个（最原始的客户端 IP）
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+
+    # X-Real-IP（Nginx 常用）
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+
+    # 直连回退
+    if request.client:
+        return request.client.host
+
+    return None
 
 
 def setup_fastapi_logger(
@@ -45,10 +76,10 @@ class LoggingRoute(APIRoute):
                     "method": request.method,
                     "path": request.url.path,
                     "query_params": str(request.query_params),
-                    "client": f"{request.client.host}:{request.client.port}" if request.client else None
+                    "client": get_client_ip(request)
                 }
             )
-            
+
             # 执行请求
             response: Response = await original_route_handler(request)
             
@@ -94,7 +125,7 @@ async def log_request_response(request: Request, call_next: Callable):
             "method": request.method,
             "path": request.url.path,
             "query": str(request.query_params),
-            "client": f"{request.client.host}:{request.client.port}" if request.client else None
+            "client": get_client_ip(request)
         }
     )
     
@@ -145,5 +176,6 @@ __all__ = [
     "setup_fastapi_logger",
     "LoggingRoute",
     "log_request_response",
-    "log_exception"
+    "log_exception",
+    "get_client_ip"
 ]
