@@ -75,6 +75,9 @@ async def create_job(
             title=job_data.title,
             description=job_data.description,
             requirements=job_data.requirements,
+            experience_years=job_data.experience_years,
+            education=job_data.education,
+            certifications=job_data.certifications,
             salary_range=job_data.salary_range,
             location=job_data.location,
             user_id=user.id
