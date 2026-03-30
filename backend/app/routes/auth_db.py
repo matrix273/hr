@@ -3,8 +3,8 @@
 import uuid
 import base64
 import random
-
 import redis
+from captcha.image import ImageCaptcha
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
@@ -349,7 +349,6 @@ async def get_captcha():
     text = _gen_captcha_text(4)
 
     # 生成图片
-    from captcha.image import ImageCaptcha
     generator = ImageCaptcha(width=120, height=40)
     buf = generator.generate(text)
     b64 = base64.b64encode(buf.getvalue()).decode()
