@@ -137,45 +137,45 @@ const Dashboard = () => {
           overflowY: 'auto',
           background: '#f5f5f5'
         }}>
-          {activeTab === 'upload' && (
+          <div style={{ display: activeTab === 'upload' ? 'block' : 'none' }}>
             <ResumeUpload onUploadSuccess={handleUploadSuccess} />
-          )}
+          </div>
 
-          {activeTab === 'list' && (
+          <div style={{ display: activeTab === 'list' ? 'block' : 'none' }}>
             <ResumeList key={refreshList} onUploadSuccess={handleUploadSuccess} />
-          )}
+          </div>
 
-          {activeTab === 'jobs' && (
+          <div style={{ display: activeTab === 'jobs' ? 'block' : 'none' }}>
             <JobManagement />
-          )}
+          </div>
 
-          {activeTab === 'screening' && (
+          <div style={{ display: activeTab === 'screening' ? 'block' : 'none' }}>
             <Screening />
-          )}
+          </div>
 
-          {activeTab === 'users' && (
+          <div style={{ display: activeTab === 'users' ? 'block' : 'none' }}>
             <UserManagement />
-          )}
+          </div>
 
-          {activeTab === 'companies' && (
+          <div style={{ display: activeTab === 'companies' ? 'block' : 'none' }}>
             <CompanyManagement />
-          )}
+          </div>
 
-          {activeTab === 'payment' && (
+          <div style={{ display: activeTab === 'payment' ? 'block' : 'none' }}>
             <Payment />
-          )}
+          </div>
 
-          {activeTab === 'plan-manage' && (
+          <div style={{ display: activeTab === 'plan-manage' ? 'block' : 'none' }}>
             <PlanManagement />
-          )}
+          </div>
 
-          {activeTab === 'contacts' && (
+          <div style={{ display: activeTab === 'contacts' ? 'block' : 'none' }}>
             <MessageManagement />
-          )}
+          </div>
 
-          {activeTab === 'audit' && (
+          <div style={{ display: activeTab === 'audit' ? 'block' : 'none' }}>
             <AuditLog />
-          )}
+          </div>
 
         </Content>
       </Layout>
