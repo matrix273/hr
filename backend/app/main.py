@@ -15,8 +15,17 @@ from .models.schemas import (
 from .config import CORS_ORIGINS, FASTAPI_HOST, FASTAPI_PORT
 from .utils.logger import logger
 from .utils.fastapi_logger import setup_fastapi_logger, log_exception
-from .auth import get_current_active_user, Permission, require_permission
-from .database import AsyncSessionLocal, close_db
+from .database import close_db
+
+from .routes.auth_db import router as auth_db_router
+from .routes.resumes import router as resumes_router
+from .routes.jobs import router as jobs_router
+from .routes.screening import router as screening_router
+from .routes.users import router as users_router
+from .routes.payment import router as payment_router
+from .routes.companies import router as companies_router
+from .routes.audit import router as audit_router
+from .routes.messages import router as messages_router
 
 # Global system instance
 system = None
@@ -80,24 +89,14 @@ app.add_middleware(
 )
 
 # Include routers
-# app.include_router(auth_router)  # 禁用基于JSON文件的旧认证系统
-from .routes.auth_db import router as auth_db_router
-app.include_router(auth_db_router)  # 使用基于数据库的新认证系统
-from .routes.resumes import router as resumes_router
+app.include_router(auth_db_router)
 app.include_router(resumes_router)
-from .routes.jobs import router as jobs_router
 app.include_router(jobs_router)
-from .routes.screening import router as screening_router
 app.include_router(screening_router)
-from .routes.users import router as users_router
 app.include_router(users_router)
-from .routes.payment import router as payment_router
 app.include_router(payment_router)
-from .routes.companies import router as companies_router
 app.include_router(companies_router)
-from .routes.audit import router as audit_router
 app.include_router(audit_router)
-from .routes.messages import router as messages_router
 app.include_router(messages_router)
 
 
