@@ -333,9 +333,9 @@ async def create_payment_qrcode(
     await db.commit()
     await db.refresh(order)
     
-    # 调用 YunGouOS 创建收银台支付
+    # 调用 YunGouOS 创建扫码支付
     payment_service = YunGouOSService()
-    result = payment_service.create_cashier_pay(
+    result = payment_service.create_native_pay(
         order_id=order.order_id,
         total_fee=total_amount,
         body=f"购买套餐: {plan.name} x{quantity}个月"
@@ -346,7 +346,7 @@ async def create_payment_qrcode(
     
     return {
         "order_id": order.order_id,
-        "pay_url": result["pay_url"],
+        "code_url": result["code_url"],
         "plan": plan.to_dict()
     }
 

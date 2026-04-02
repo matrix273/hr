@@ -13,6 +13,7 @@ YUNGOUOS_NOTIFY_URL = os.getenv("YUNGOUOS_NOTIFY_URL", "")
 
 # YunGouOS API 地址
 WXPAY_CASHIER_URL = "https://api.pay.yungouos.com/api/pay/wxpay/cashierPay"
+WXPAY_NATIVE_URL = "https://api.pay.yungouos.com/api/pay/wxpay/nativePay"
 
 
 def _remove_empty(params: dict) -> dict:
@@ -161,6 +162,77 @@ class YunGouOSService:
             logger.error(f"YunGouOS 创建支付异常: {e}")
             return {"success": False, "error": str(e)}
 
+    def create_native_pay(
+        self,
+        order_id: str,
+        total_fee: float,
+        body: str
+    ) -> Dict:
+        """
+        发起微信扫码支付（Native Pay），返回 code_url 供前端生成二维码
+
+        Args:
+            order_id: 商户订单号
+            total_fee: 金额（元）
+            body: 商品描述
+
+        Returns:
+            dict: {"success": True, "code_url": "..."} 或 {"success": False, "error": "..."}
+        """
+        try:
+            if not YUNGOUOS_MCH_ID or not YUNGOUOS_KEY:
+                return {"success": False, "error": "支付未配置，请联系管理员"}
+
+            params_dict = {
+                "mch_id": YUNGOUOS_MCH_ID,
+                "out_trade_no": order_id,
+                "total_fee": str(total_fee),
+                "body": body,
+            }
+
+            sign = _get_sign(params_dict, YUNGOUOS_KEY)
+            params_dict["sign"] = sign
+
+            if YUNGOUOS_NOTIFY_URL:
+                params_dict["notify_url"] = YUNGOUOS_NOTIFY_URL
+
+            resp = httpx.post(WXPAY_NATIVE_URL, data=params_dict, timeout=10)
+            logger.info(f"YunGouOS Native Pay 响应: {resp.status_code}, 内容: {resp.text[:500]}")
+            ret = resp.json()
+
+            if not isinstance(ret, dict):
+                logger.error(f"YunGouOS 返回非 JSON 对象: {resp.text[:500]}")
+                return {"success": False, "error": f"支付平台返回异常: {str(ret)[:200]}"}
+
+            if ret.get("code") != 0:
+                logger.error(f"YunGouOS Native Pay 失败: {ret.get('msg')}")
+                return {"success": False, "error": ret.get("msg", "支付创建失败")}
+
+            data = ret.get("data", "")
+            code_url = ""
+            if isinstance(data, str):
+                code_url = data
+            elif isinstance(data, dict):
+                code_url = data.get("code_url", data.get("qr_url", ""))
+
+            if not code_url:
+                logger.error(f"YunGouOS 未返回 code_url: {data}")
+                return {"success": False, "error": "支付平台未返回二维码链接"}
+
+            return {
+                "success": True,
+                "code_url": code_url,
+                "order_id": order_id,
+                "amount": total_fee,
+            }
+
+        except httpx.TimeoutException:
+            logger.error("YunGouOS Native Pay 请求超时")
+            return {"success": False, "error": "支付服务超时，请稍后重试"}
+        except Exception as e:
+            logger.error(f"YunGouOS Native Pay 异常: {e}")
+            return {"success": False, "error": str(e)}
+
     @staticmethod
     def verify_notify(post_data: dict) -> Dict:
         """
@@ -203,7 +275,7 @@ class YunGouOSService:
                 {
                     "code": "wechat_qrcode",
                     "name": "微信支付",
-                    "description": "微信收银台扫码支付",
+                    "description": "微信扫码支付",
                     "icon": "wechat",
                 },
             ]

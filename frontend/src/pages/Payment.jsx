@@ -10,6 +10,7 @@ import {
     WechatOutlined, CreditCardOutlined, CrownOutlined,
     CloseCircleOutlined, QuestionCircleOutlined
 } from '@ant-design/icons';
+import { QRCodeSVG } from 'qrcode.react';
 import { getApiBaseUrl } from '../utils/api';
 
 const { Title, Text, Paragraph } = Typography;
@@ -38,6 +39,7 @@ const PaymentPage = () => {
     const [quantity, setQuantity] = useState(1);
     const [orderId, setOrderId] = useState(null);
     const [paymentStatus, setPaymentStatus] = useState('idle');
+    const [codeUrl, setCodeUrl] = useState(null);
     const [userInfo, setUserInfo] = useState(null);
     const [orders, setOrders] = useState([]);
     const [activeTab, setActiveTab] = useState('plans');
@@ -130,8 +132,7 @@ const PaymentPage = () => {
 
             if (response.ok) {
                 setOrderId(data.order_id);
-                // 跳转到 YunGouOS 收银台支付页面
-                window.open(data.pay_url, '_blank');
+                setCodeUrl(data.code_url);
                 startPolling(data.order_id);
             } else {
                 setPaymentStatus('failed');
@@ -172,6 +173,7 @@ const PaymentPage = () => {
             pollTimerRef.current = null;
         }
         setOrderId(null);
+        setCodeUrl(null);
         setPaymentStatus('idle');
     };
 
@@ -706,12 +708,30 @@ const PaymentPage = () => {
                         destroyOnHidden
                     >
                         <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                            <WechatOutlined style={{ fontSize: 48, color: '#07c160', display: 'block', marginBottom: 16 }} />
+                            <div style={{
+                                display: 'inline-block',
+                                padding: 16,
+                                background: '#fff',
+                                borderRadius: 12,
+                                border: '1px solid #f0f0f0',
+                                marginBottom: 16,
+                            }}>
+                                {codeUrl ? (
+                                    <QRCodeSVG
+                                        value={codeUrl}
+                                        size={200}
+                                        level="M"
+                                        includeMargin={false}
+                                    />
+                                ) : (
+                                    <Spin indicator={<LoadingOutlined style={{ fontSize: 48 }} spin />} />
+                                )}
+                            </div>
                             <Title level={4} style={{ marginBottom: 8 }}>
-                                等待支付
+                                微信扫码支付
                             </Title>
                             <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
-                                已在新窗口打开收银台，请完成支付
+                                请使用微信扫一扫完成支付
                             </Text>
                             <Text strong style={{ display: 'block', marginBottom: 20, fontSize: 18, color: '#f5222d' }}>
                                 ¥{totalPrice}
