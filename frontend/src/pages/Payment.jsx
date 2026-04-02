@@ -34,6 +34,7 @@ const METHOD_BG_MAP = {
 const PaymentPage = () => {
     const [plans, setPlans] = useState([]);
     const [paymentMethods, setPaymentMethods] = useState([]);
+    const [payeeName, setPayeeName] = useState('');
     const [selectedPlan, setSelectedPlan] = useState(null);
     const [selectedMethod, setSelectedMethod] = useState(null);
     const [quantity, setQuantity] = useState(1);
@@ -78,6 +79,7 @@ const PaymentPage = () => {
             const response = await fetch(`${API_BASE}/payment/methods`);
             const data = await response.json();
             setPaymentMethods(data.methods);
+            if (data.payee_name) setPayeeName(data.payee_name);
         } catch (error) {
             console.error('获取支付方式失败:', error);
         }
@@ -736,6 +738,21 @@ const PaymentPage = () => {
                             <Text strong style={{ display: 'block', marginBottom: 20, fontSize: 18, color: '#f5222d' }}>
                                 ¥{totalPrice}
                             </Text>
+                            <div style={{
+                                background: '#fafafa',
+                                borderRadius: 8,
+                                padding: '8px 16px',
+                                marginBottom: 16,
+                                fontSize: 13,
+                                color: '#666',
+                                display: 'flex',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                gap: 6,
+                            }}>
+                                <WechatOutlined style={{ color: '#07c160' }} />
+                                <span>收款方：<strong style={{ color: '#333' }}>{payeeName || 'AI简历筛选系统'}</strong></span>
+                            </div>
                             <Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 20 }}>
                                 订单号: {orderId}
                             </Text>

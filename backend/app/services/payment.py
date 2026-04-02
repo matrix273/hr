@@ -270,6 +270,7 @@ class YunGouOSService:
     @staticmethod
     def get_available_payment_methods() -> Dict:
         """获取可用的支付方式"""
+        payee_name = os.getenv("PAYEE_NAME", "AI简历筛选系统")
         return {
             "methods": [
                 {
@@ -278,5 +279,6 @@ class YunGouOSService:
                     "description": "微信扫码支付",
                     "icon": "wechat",
                 },
-            ]
+            ],
+            "payee_name": payee_name,
         }
