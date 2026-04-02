@@ -1,5 +1,6 @@
 """支付路由 - 基于 YunGouOS 微信收银台支付"""
 
+import re
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse
