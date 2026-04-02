@@ -149,12 +149,9 @@ export const getPermissionHint = (permission) => {
  */
 export const getRolePermissionsDescription = () => {
   return {
-    admin: "拥有所有权限，可管理系统所有功能",
-    manager: "可管理岗位和筛选，可查看和更新用户信息",
-    hr: "可管理简历、岗位和筛选，可查看和更新用户信息",
-    recruiter: "可上传简历和执行筛选",
-    interviewer: "仅可查看简历和岗位信息",
-    user: "仅可浏览简历和岗位"
+    admin: "超级管理员：拥有所有权限，包括系统配置、用户管理、公司管理、报表统计等全部功能",
+    hr: "人事专员：可管理简历和岗位，执行筛选，查看报表，查看和编辑用户信息",
+    user: "普通用户：可查看简历和岗位信息，上传简历，编辑个人资料"
   };
 };
 

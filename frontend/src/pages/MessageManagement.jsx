@@ -30,7 +30,7 @@ const MessageManagement = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/users/contacts');
+      const res = await api.get('/messages');
       setData(res.data || []);
     } catch (err) {
       console.error('获取消息列表失败:', err);
@@ -46,7 +46,7 @@ const MessageManagement = () => {
   /** 标记为已处理 */
   const handleMarkProcessed = async (record) => {
     try {
-      await api.put(`/users/contacts/${record.id}`, null, {
+      await api.put(`/messages/${record.id}`, null, {
         params: { status: 'processed' }
       });
       message.success('已标记为处理完成');
@@ -59,7 +59,7 @@ const MessageManagement = () => {
   /** 标记为待处理 */
   const handleMarkPending = async (record) => {
     try {
-      await api.put(`/users/contacts/${record.id}`, null, {
+      await api.put(`/messages/${record.id}`, null, {
         params: { status: 'pending' }
       });
       message.success('已恢复为待处理');
@@ -91,7 +91,7 @@ const MessageManagement = () => {
     }
     setReplySending(true);
     try {
-      await api.post(`/users/contacts/${currentContact.id}/reply`, {
+      await api.post(`/messages/${currentContact.id}/reply`, {
         reply_content: replyContent.trim()
       });
       message.success('回复邮件已发送');

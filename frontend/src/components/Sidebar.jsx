@@ -32,6 +32,9 @@ const Sidebar = ({activeItem, onItemClick, collapsed}) => {
     // 套餐管理仅系统管理员可见
     const canManagePlans = hasAnyPermission([Permission.SYSTEM_ADMIN]);
 
+    // 用户管理 - 所有登录用户都可以访问（用于管理个人信息）
+    const canManageUsers = !!localStorage.getItem('token');
+
     const menuItems = [
         {
             key: 'upload',
@@ -53,11 +56,11 @@ const Sidebar = ({activeItem, onItemClick, collapsed}) => {
             icon: <SearchOutlined/>,
             label: '简历筛选'
         },
-        {
+        ...(canManageUsers ? [{
             key: 'users',
             icon: <TeamOutlined/>,
             label: '用户管理'
-        },
+        }] : []),
         {
             key: 'payment',
             icon: <CreditCardOutlined/>,

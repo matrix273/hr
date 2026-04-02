@@ -13,6 +13,7 @@ import PlanManagement from '../components/PlanManagement';
 import AuditLog from './AuditLog';
 import MessageManagement from './MessageManagement';
 import Sidebar from '../components/Sidebar';
+import { Permission, hasPermission } from '../utils/permissions';
 
 const { Header, Content, Sider } = Layout;
 const { Title, Text } = Typography;
@@ -22,7 +23,26 @@ const Dashboard = () => {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const [activeTab, setActiveTab] = useState(() => {
     // 从 localStorage 读取保存的 tab，如果没有则默认为 'upload'
-    return localStorage.getItem('activeTab') || 'upload';
+    let savedTab = localStorage.getItem('activeTab') || 'upload';
+
+    // 检查用户是否有权限访问保存的 tab（用户管理、会员订阅对所有用户开放）
+    const tabPermissions = {
+      'companies': [Permission.COMPANY_READ],
+      'plan-manage': [Permission.SYSTEM_ADMIN],
+      'contacts': [Permission.SYSTEM_ADMIN],
+      'audit': [Permission.SYSTEM_ADMIN],
+    };
+
+    const requiredPermissions = tabPermissions[savedTab];
+    if (requiredPermissions) {
+      const hasAccess = requiredPermissions.some(p => hasPermission(p));
+      if (!hasAccess) {
+        savedTab = 'upload'; // 无权限则切换到默认页面
+        localStorage.setItem('activeTab', 'upload');
+      }
+    }
+
+    return savedTab;
   });
   const [uploadedResumes, setUploadedResumes] = useState([]);
   const [refreshList, setRefreshList] = useState(0);
@@ -158,7 +178,7 @@ const Dashboard = () => {
           </div>
 
           <div style={{ display: activeTab === 'companies' ? 'block' : 'none' }}>
-            <CompanyManagement />
+            {hasPermission(Permission.COMPANY_READ) && <CompanyManagement />}
           </div>
 
           <div style={{ display: activeTab === 'payment' ? 'block' : 'none' }}>
@@ -166,11 +186,11 @@ const Dashboard = () => {
           </div>
 
           <div style={{ display: activeTab === 'plan-manage' ? 'block' : 'none' }}>
-            <PlanManagement />
+            {hasPermission(Permission.SYSTEM_ADMIN) && <PlanManagement />}
           </div>
 
           <div style={{ display: activeTab === 'contacts' ? 'block' : 'none' }}>
-            <MessageManagement />
+            {hasPermission(Permission.SYSTEM_ADMIN) && <MessageManagement />}
           </div>
 
           <div style={{ display: activeTab === 'audit' ? 'block' : 'none' }}>

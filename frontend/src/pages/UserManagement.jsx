@@ -27,6 +27,7 @@ import {
   Tooltip,
   Row,
   Col,
+  Descriptions,
   message
 } from 'antd';
 import {
@@ -47,11 +48,13 @@ const UserManagement = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [modalMode, setModalMode] = useState('create'); // 'create' or 'edit'
+  const [modalMode, setModalMode] = useState('create'); // 'create', 'edit', or 'profile'
   const [currentUser, setCurrentUser] = useState(null);
   const [form] = Form.useForm();
   const [companies, setCompanies] = useState([]);
   const isAdmin = getCurrentUser()?.role === 'admin';
+  const canManageUsers = hasPermission(Permission.USER_READ); // 是否可以管理用户列表
+
   // 邮箱验证码相关
   const [emailCodeCountdown, setEmailCodeCountdown] = useState(0);
   const [emailCodeLoading, setEmailCodeLoading] = useState(false);
@@ -63,9 +66,23 @@ const UserManagement = () => {
   ];
 
   useEffect(() => {
-    fetchUsers();
-    if (isAdmin) fetchCompanies();
-  }, []);
+    if (canManageUsers) {
+      fetchUsers();
+      if (isAdmin) fetchCompanies();
+    } else {
+      // 普通用户加载自己的信息用于编辑
+      const me = getCurrentUser();
+      if (me) {
+        setCurrentUser({
+          id: me.id,
+          username: me.username,
+          email: me.email,
+          full_name: me.full_name,
+          role: me.role
+        });
+      }
+    }
+  }, [canManageUsers, isAdmin]);
 
   // 邮箱验证码倒计时
   useEffect(() => {
@@ -119,19 +136,31 @@ const UserManagement = () => {
       setError('无权编辑管理员账号');
       return;
     }
-
     setModalMode('edit');
-    setEmailCodeCountdown(0);
     form.setFieldsValue({
       username: user.username,
       email: user.email,
-      full_name: user.full_name || '',
+      full_name: user.full_name,
       role: user.role,
       is_active: user.is_active,
-      password: '',
-      company_id: user.company_id || undefined
+      company_id: user.company_id
     });
     setCurrentUser(user);
+    setShowModal(true);
+  };
+
+  const handleEditProfile = () => {
+    // 编辑个人信息
+    const me = getCurrentUser();
+    if (!me) return;
+
+    setModalMode('edit');
+    form.setFieldsValue({
+      username: me.username,
+      email: me.email,
+      full_name: me.full_name,
+    });
+    setCurrentUser(me);
     setShowModal(true);
   };
 
@@ -322,49 +351,83 @@ const UserManagement = () => {
   return (
     <div style={{ minHeight: '100vh' }}>
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <Title level={2} style={{ margin: 0, color: '#262626' }}>用户管理</Title>
-          {shouldShowElement(Permission.USER_CREATE) && (
-            <Tooltip title={getPermissionHint(Permission.USER_CREATE)}>
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={handleCreate}
-                disabled={isButtonDisabled(Permission.USER_CREATE)}
-              >
-                新建用户
-              </Button>
-            </Tooltip>
-          )}
-        </div>
-
-        {error && <Alert message={error} type="error" style={{ marginBottom: 16 }} />}
-
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 48 }}>
-            <Typography.Text type="secondary">加载中...</Typography.Text>
-          </div>
-        ) : (
-          <Card>
-            <Table
-              columns={columns}
-              dataSource={users}
-              rowKey="id"
-              pagination={{
-                pageSize: 10,
-                showSizeChanger: true,
-                showQuickJumper: true,
-                showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-              }}
-              locale={{
-                emptyText: (
-                  <div style={{ textAlign: 'center', padding: 48 }}>
-                    <Typography.Text type="secondary">暂无用户数据</Typography.Text>
-                  </div>
-                )
-              }}
-            />
+        {/* 普通用户：只显示个人信息编辑界面 */}
+        {!canManageUsers ? (
+          <Card style={{ maxWidth: 800, margin: '0 auto' }}>
+            <Title level={3} style={{ marginBottom: 24 }}>个人信息</Title>
+            {error && <Alert message={error} type="error" style={{ marginBottom: 16 }} onClose={() => setError('')} />}
+            {currentUser && (
+              <div>
+                <Descriptions
+                  column={1}
+                  bordered
+                  size="middle"
+                  style={{ marginBottom: 24 }}
+                >
+                  <Descriptions.Item label="用户名">{currentUser.username}</Descriptions.Item>
+                  <Descriptions.Item label="邮箱">{currentUser.email}</Descriptions.Item>
+                  <Descriptions.Item label="姓名">{currentUser.full_name || '-'}</Descriptions.Item>
+                  <Descriptions.Item label="角色">{getRoleLabel(currentUser.role)}</Descriptions.Item>
+                </Descriptions>
+                <Button
+                  type="primary"
+                  icon={<EditOutlined />}
+                  onClick={handleEditProfile}
+                  size="large"
+                >
+                  编辑个人信息
+                </Button>
+              </div>
+            )}
           </Card>
+        ) : (
+          /* 管理员/HR：显示完整的用户管理界面 */
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Title level={2} style={{ margin: 0, color: '#262626' }}>用户管理</Title>
+              {shouldShowElement(Permission.USER_CREATE) && (
+                <Tooltip title={getPermissionHint(Permission.USER_CREATE)}>
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={handleCreate}
+                    disabled={isButtonDisabled(Permission.USER_CREATE)}
+                  >
+                    新建用户
+                  </Button>
+                </Tooltip>
+              )}
+            </div>
+
+            {error && <Alert message={error} type="error" style={{ marginBottom: 16 }} />}
+
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: 48 }}>
+                <Typography.Text type="secondary">加载中...</Typography.Text>
+              </div>
+            ) : (
+              <Card>
+                <Table
+                  columns={columns}
+                  dataSource={users}
+                  rowKey="id"
+                  pagination={{
+                    pageSize: 10,
+                    showSizeChanger: true,
+                    showQuickJumper: true,
+                    showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
+                  }}
+                  locale={{
+                    emptyText: (
+                      <div style={{ textAlign: 'center', padding: 48 }}>
+                        <Typography.Text type="secondary">暂无用户数据</Typography.Text>
+                      </div>
+                    )
+                  }}
+                />
+              </Card>
+            )}
+          </>
         )}
       </div>
 
@@ -565,22 +628,13 @@ const UserManagement = () => {
           <Card size="small" title="角色权限说明" style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
-                <strong>管理员：</strong>拥有所有权限，可管理用户和系统
+                <strong>管理员：</strong>拥有所有权限，包括系统配置、用户管理、公司管理、报表统计等全部功能
               </Typography.Text>
               <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
-                <strong>经理：</strong>可管理岗位和筛选，可查看和更新用户信息
+                <strong>人力资源：</strong>可管理简历和岗位，执行筛选，查看报表，查看和编辑用户信息
               </Typography.Text>
               <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
-                <strong>人力资源：</strong>可管理简历、岗位和筛选，可查看用户
-              </Typography.Text>
-              <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
-                <strong>招聘专员：</strong>可上传简历和执行筛选
-              </Typography.Text>
-              <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
-                <strong>面试官：</strong>仅可查看简历和岗位信息
-              </Typography.Text>
-              <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
-                <strong>普通用户：</strong>仅可浏览简历和岗位
+                <strong>普通用户：</strong>可查看简历和岗位信息，上传简历，编辑个人资料
               </Typography.Text>
             </div>
           </Card>

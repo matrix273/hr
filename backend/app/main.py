@@ -97,6 +97,8 @@ from .routes.companies import router as companies_router
 app.include_router(companies_router)
 from .routes.audit import router as audit_router
 app.include_router(audit_router)
+from .routes.messages import router as messages_router
+app.include_router(messages_router)
 
 
 @app.get("/", tags=["Root"])

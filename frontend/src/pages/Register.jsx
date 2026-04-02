@@ -89,7 +89,7 @@ const Register = () => {
       const values = await contactForm.validateFields();
       setContactLoading(true);
       try {
-        const response = await api.post('/users/contact', values);
+        const response = await api.post('/messages', values);
         if (response.data.success) {
           message.success(response.data.message);
           setShowContactModal(false);

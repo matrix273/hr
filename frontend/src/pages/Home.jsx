@@ -39,7 +39,7 @@ const Home = () => {
       setContactLoading(true);
       
       try {
-        const response = await api.post('/users/contact', values);
+        const response = await api.post('/messages', values);
         if (response.data.success) {
           message.success(response.data.message);
           setShowContactModal(false);
