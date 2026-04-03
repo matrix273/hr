@@ -477,16 +477,18 @@ const Home = () => {
           </Paragraph>
           <div style={{ textAlign: 'center' }}>
             <Button 
-              type="primary"
               size="large"
               onClick={() => window.location.href = '/login'}
               style={{
-                background: 'linear-gradient(45deg, #4f46e5 30%, #7c3aed 90%)',
+                background: '#ffffff',
                 border: 'none',
-                height: '42px',
+                height: '48px',
                 padding: '0 36px',
-                fontSize: '15px',
-                fontWeight: 'bold'
+                fontSize: '16px',
+                fontWeight: 'bold',
+                color: '#4f46e5',
+                boxShadow: '0 4px 24px rgba(0, 0, 0, 0.25)',
+                borderRadius: '8px'
               }}
             >
               立即登录
