@@ -511,8 +511,9 @@ const Home = () => {
             href="https://beian.mps.gov.cn/#/query/webSearch?code=44196802000159"
             target="_blank"
             rel="noreferrer"
-            style={{ color: '#999999', textDecoration: 'none' }}
+            style={{ color: '#999999', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
           >
+            <img src="/images/备案图标.png" alt="" style={{ width: '16px', height: '16px', marginRight: '4px' }} />
             粤公网安备44196802000159号
           </a>
         </div>
