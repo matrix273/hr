@@ -498,14 +498,24 @@ const Home = () => {
         <Paragraph style={{ marginBottom: '8px', fontSize: '14px', color: '#cccccc' }}>
           &copy; 2025 AI 简历筛选系统. All rights reserved.
         </Paragraph>
-        <a
-          href="https://beian.miit.gov.cn/"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#999999', textDecoration: 'none' }}
-        >
-          粤ICP备19036803号-2
-        </a>
+        <div style={{ marginBottom: '8px', fontSize: '13px', color: '#999999' }}>
+          <a
+            href="https://beian.miit.gov.cn/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: '#999999', textDecoration: 'none', marginRight: '12px' }}
+          >
+            粤ICP备19036803号-2
+          </a>
+          <a
+            href="https://beian.mps.gov.cn/#/query/webSearch?code=44196802000159"
+            target="_blank"
+            rel="noreferrer"
+            style={{ color: '#999999', textDecoration: 'none' }}
+          >
+            粤公网安备44196802000159号
+          </a>
+        </div>
         <Paragraph 
           style={{ 
             color: '#4f46e5',
