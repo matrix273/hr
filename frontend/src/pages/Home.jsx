@@ -89,17 +89,19 @@ const Home = () => {
           </Paragraph>
           <Space size={16}>
             <Button 
-              type="primary"
               size="large"
               icon={<SearchOutlined />}
               onClick={() => window.location.href = '/login'}
               style={{
-                background: 'linear-gradient(45deg, #4f46e5 30%, #7c3aed 90%)',
+                background: '#ffffff',
                 border: 'none',
-                height: '42px',
-                padding: '0 28px',
-                fontSize: '15px',
-                fontWeight: 'bold'
+                height: '48px',
+                padding: '0 36px',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                color: '#4f46e5',
+                boxShadow: '0 4px 24px rgba(0, 0, 0, 0.25)',
+                borderRadius: '8px'
               }}
             >
               立即登录
