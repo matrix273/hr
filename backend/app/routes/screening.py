@@ -885,60 +885,39 @@ def _register_chinese_font():
     """注册中文字体，返回字体名称和粗体字体名称"""
     import os
 
-    font_pairs = [
-        # macOS
-        ("/System/Library/Fonts/STHeiti Light.ttc", ("/System/Library/Fonts/STHeiti Medium.ttc", 0)),
-        ("/System/Library/Fonts/PingFang.ttc", None),
-        ("/System/Library/Fonts/Supplemental/Songti.ttc", None),
-        ("/System/Library/Fonts/Supplemental/Arial Unicode.ttf", None),
-        # Windows
-        ("C:/Windows/Fonts/simsun.ttc", "C:/Windows/Fonts/simhei.ttf"),
-        ("C:/Windows/Fonts/msyh.ttc", None),
-        # Linux - WenQuanYi (apt install fonts-wqy-microhei, 无粗体, TrueType 兼容 ReportLab)
-        ("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc", None),
-        # Linux - NotoSansCJK (apt install fonts-noto-cjk, 部分系统可能不支持 CFF 轮廓)
-        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-         "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"),
-    ]
+    # 只使用项目本地字体，统一跨平台使用
+    font_dir = os.path.join(os.path.dirname(__file__), "..", "fonts")
+    regular_font = os.path.join(font_dir, "NotoSansSC-Regular.ttf")
+    bold_font = os.path.join(font_dir, "NotoSansSC-Bold.ttf")
 
     font_name = "CN"
     bold_font_name = font_name
 
-    for regular, bold in font_pairs:
-        if not os.path.exists(regular):
-            continue
+    # 检查字体文件是否存在
+    if not os.path.exists(regular_font):
+        raise RuntimeError(f"未找到中文字体文件: {regular_font}")
 
-        # 尝试注册常规字体
+    # 注册常规字体
+    try:
+        pdfmetrics.registerFont(TTFont(font_name, regular_font))
+        logger.info(f"成功注册中文字体: {regular_font}")
+    except Exception as e:
+        raise RuntimeError(f"注册中文字体失败: {e}")
+
+    # 注册粗体字体
+    if os.path.exists(bold_font):
         try:
-            if regular.endswith(".ttc"):
-                pdfmetrics.registerFont(TTFont(font_name, regular, subfontIndex=0))
-            else:
-                pdfmetrics.registerFont(TTFont(font_name, regular))
+            pdfmetrics.registerFont(TTFont(f"{font_name}-Bold", bold_font))
+            pdfmetrics.registerFontFamily(font_name, normal=font_name, bold=f"{font_name}-Bold")
+            bold_font_name = f"{font_name}-Bold"
+            logger.info(f"成功注册粗体中文字体: {bold_font}")
         except Exception as e:
-            logger.debug(f"跳过字体 {regular}: {e}")
-            continue
+            logger.warning(f"注册粗体字体失败，使用常规字体代替: {e}")
+            bold_font_name = font_name
+    else:
+        logger.warning(f"未找到粗体字体文件: {bold_font}，使用常规字体代替")
 
-        # 尝试注册粗体
-        bold_font_name = font_name
-        if bold and isinstance(bold, str) and os.path.exists(bold):
-            try:
-                if bold.endswith(".ttc"):
-                    pdfmetrics.registerFont(TTFont(f"{font_name}-Bold", bold, subfontIndex=0))
-                else:
-                    pdfmetrics.registerFont(TTFont(f"{font_name}-Bold", bold))
-                pdfmetrics.registerFontFamily(font_name, normal=font_name, bold=f"{font_name}-Bold")
-                bold_font_name = f"{font_name}-Bold"
-                logger.info(f"成功注册中文字体: {regular}, 粗体: {bold}")
-            except Exception as e:
-                logger.warning(f"注册粗体字体失败，使用常规字体代替: {e}")
-                bold_font_name = font_name
-                logger.info(f"成功注册中文字体: {regular} (无粗体)")
-        else:
-            logger.info(f"成功注册中文字体: {regular} (无单独粗体)")
-
-        return font_name, bold_font_name
-
-    raise RuntimeError("未找到合适的中文字体，请安装 fonts-wqy-microhei 或 fonts-noto-cjk")
+    return font_name, bold_font_name
 
 
 def _create_styles(chinese_font: str, bold_font: str = None) -> dict:
