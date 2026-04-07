@@ -894,63 +894,51 @@ def _register_chinese_font():
         # Windows
         ("C:/Windows/Fonts/simsun.ttc", "C:/Windows/Fonts/simhei.ttf"),
         ("C:/Windows/Fonts/msyh.ttc", None),
-        # Linux - NotoSansCJK (apt install fonts-noto-cjk)
+        # Linux - WenQuanYi (apt install fonts-wqy-microhei, 无粗体, TrueType 兼容 ReportLab)
+        ("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc", None),
+        # Linux - NotoSansCJK (apt install fonts-noto-cjk, 部分系统可能不支持 CFF 轮廓)
         ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
          "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"),
-        # Linux - WenQuanYi (apt install fonts-wqy-microhei, 无粗体)
-        ("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc", None),
     ]
 
-    font_path = None
-    bold_font_path = None
-    for regular, bold in font_pairs:
-        if os.path.exists(regular):
-            font_path = regular
-            bold_font_path = bold if bold and isinstance(bold, str) and os.path.exists(bold) else None
-            if bold and isinstance(bold, tuple):
-                if os.path.exists(bold[0]):
-                    bold_font_path = bold
-            break
-
-    if font_path is None:
-        raise RuntimeError("未找到合适的中文字体，请安装 CJK 字体")
-
     font_name = "CN"
-    try:
-        if font_path.endswith(".ttc"):
-            pdfmetrics.registerFont(TTFont(font_name, font_path, subfontIndex=0))
-        else:
-            pdfmetrics.registerFont(TTFont(font_name, font_path))
-    except Exception as e:
-        logger.error(f"注册常规字体失败: {e}")
-        raise
+    bold_font_name = font_name
 
-    # ReportLab Paragraph 遇到 <b>/<strong> 时自动查找 {fontName}-Bold
-    # 必须使用连字符命名才能被自动识别
-    bold_font_name = f"{font_name}-Bold"
-    if bold_font_path:
+    for regular, bold in font_pairs:
+        if not os.path.exists(regular):
+            continue
+
+        # 尝试注册常规字体
         try:
-            actual_bold_path = bold_font_path if isinstance(bold_font_path, str) else bold_font_path[0]
-            bold_subindex = None if isinstance(bold_font_path, str) else bold_font_path[1]
-            if actual_bold_path.endswith(".ttc"):
-                pdfmetrics.registerFont(TTFont(bold_font_name, actual_bold_path, subfontIndex=bold_subindex or 0))
+            if regular.endswith(".ttc"):
+                pdfmetrics.registerFont(TTFont(font_name, regular, subfontIndex=0))
             else:
-                pdfmetrics.registerFont(TTFont(bold_font_name, actual_bold_path))
-            # 注册字体族，让 ReportLab 知道 CN 和 CN-Bold 的关联
-            pdfmetrics.registerFontFamily(
-                font_name,
-                normal=font_name,
-                bold=bold_font_name
-            )
-            logger.info(f"成功注册中文字体: {font_path}, 粗体: {actual_bold_path}")
+                pdfmetrics.registerFont(TTFont(font_name, regular))
         except Exception as e:
-            logger.warning(f"注册粗体字体失败，使用常规字体代替: {e}")
-            bold_font_name = font_name
-    else:
-        bold_font_name = font_name
-        logger.info(f"成功注册中文字体: {font_path} (无单独粗体)")
+            logger.debug(f"跳过字体 {regular}: {e}")
+            continue
 
-    return font_name, bold_font_name
+        # 尝试注册粗体
+        bold_font_name = font_name
+        if bold and isinstance(bold, str) and os.path.exists(bold):
+            try:
+                if bold.endswith(".ttc"):
+                    pdfmetrics.registerFont(TTFont(f"{font_name}-Bold", bold, subfontIndex=0))
+                else:
+                    pdfmetrics.registerFont(TTFont(f"{font_name}-Bold", bold))
+                pdfmetrics.registerFontFamily(font_name, normal=font_name, bold=f"{font_name}-Bold")
+                bold_font_name = f"{font_name}-Bold"
+                logger.info(f"成功注册中文字体: {regular}, 粗体: {bold}")
+            except Exception as e:
+                logger.warning(f"注册粗体字体失败，使用常规字体代替: {e}")
+                bold_font_name = font_name
+                logger.info(f"成功注册中文字体: {regular} (无粗体)")
+        else:
+            logger.info(f"成功注册中文字体: {regular} (无单独粗体)")
+
+        return font_name, bold_font_name
+
+    raise RuntimeError("未找到合适的中文字体，请安装 fonts-wqy-microhei 或 fonts-noto-cjk")
 
 
 def _create_styles(chinese_font: str, bold_font: str = None) -> dict:
