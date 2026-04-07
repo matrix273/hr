@@ -885,26 +885,31 @@ def _register_chinese_font():
     """注册中文字体，返回字体名称和粗体字体名称"""
     import os
 
+    # NotoSansCJK ttc 文件中的字重 subfontIndex 映射
+    NOTO_CJK_BOLD_INDEX = 4  # 0=Thin, 1=Light, 2=DemiLight, 3=Regular, 4=Medium, 5=Bold
+
     font_pairs = [
         # macOS
-        ("/System/Library/Fonts/STHeiti Light.ttc", "/System/Library/Fonts/STHeiti Medium.ttc"),
+        ("/System/Library/Fonts/STHeiti Light.ttc", ("/System/Library/Fonts/STHeiti Medium.ttc", 0)),
         ("/System/Library/Fonts/PingFang.ttc", None),
         ("/System/Library/Fonts/Supplemental/Songti.ttc", None),
         ("/System/Library/Fonts/Supplemental/Arial Unicode.ttf", None),
         # Windows
-        ("C:/Windows/Fonts/simsun.ttc", "C:/Windows/Fonts/simhei.ttf"),
+        ("C:/Windows/Fonts/simsun.ttc", ("C:/Windows/Fonts/simhei.ttf", None)),
         ("C:/Windows/Fonts/msyh.ttc", None),
-        # Linux
-        ("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc", "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"),
-        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", None),
+        # Linux - NotoSansCJK 包含多种字重，Bold 在 subfontIndex=5
+        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+         ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", NOTO_CJK_BOLD_INDEX)),
+        ("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc", None),
     ]
 
     font_path = None
-    bold_font_path = None
+    bold_info = None  # (path, subfontIndex_or_None)
     for regular, bold in font_pairs:
         if os.path.exists(regular):
             font_path = regular
-            bold_font_path = bold if bold and os.path.exists(bold) else None
+            if bold and os.path.exists(bold[0]):
+                bold_info = bold
             break
 
     if font_path is None:
@@ -913,7 +918,7 @@ def _register_chinese_font():
     font_name = "CN"
     try:
         if font_path.endswith(".ttc"):
-            pdfmetrics.registerFont(TTFont(font_name, font_path, subfontIndex=0))
+            pdfmetrics.registerFont(TTFont(font_name, font_path, subfontIndex=3))
         else:
             pdfmetrics.registerFont(TTFont(font_name, font_path))
     except Exception as e:
@@ -923,19 +928,20 @@ def _register_chinese_font():
     # ReportLab Paragraph 遇到 <b>/<strong> 时自动查找 {fontName}-Bold
     # 必须使用连字符命名才能被自动识别
     bold_font_name = f"{font_name}-Bold"
-    if bold_font_path:
+    if bold_info:
         try:
-            if bold_font_path.endswith(".ttc"):
-                pdfmetrics.registerFont(TTFont(bold_font_name, bold_font_path, subfontIndex=0))
+            bold_path, bold_subindex = bold_info
+            if bold_path.endswith(".ttc"):
+                pdfmetrics.registerFont(TTFont(bold_font_name, bold_path, subfontIndex=bold_subindex))
             else:
-                pdfmetrics.registerFont(TTFont(bold_font_name, bold_font_path))
+                pdfmetrics.registerFont(TTFont(bold_font_name, bold_path))
             # 注册字体族，让 ReportLab 知道 CN 和 CN-Bold 的关联
             pdfmetrics.registerFontFamily(
                 font_name,
                 normal=font_name,
                 bold=bold_font_name
             )
-            logger.info(f"成功注册中文字体: {font_path}, 粗体: {bold_font_path}")
+            logger.info(f"成功注册中文字体: {font_path}, 粗体: {bold_path} (subfontIndex={bold_subindex})")
         except Exception as e:
             logger.warning(f"注册粗体字体失败，使用常规字体代替: {e}")
             bold_font_name = font_name
