@@ -3,6 +3,7 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from .core.system import ResumeScreeningSystem
 from .models.schemas import (
@@ -98,6 +99,12 @@ app.include_router(payment_router)
 app.include_router(companies_router)
 app.include_router(audit_router)
 app.include_router(messages_router)
+
+# 挂载静态文件目录（音频等）
+import os
+AUDIO_DIR = os.path.join(os.path.dirname(__file__), "..", "static", "audio")
+os.makedirs(AUDIO_DIR, exist_ok=True)
+app.mount("/audio", StaticFiles(directory=AUDIO_DIR), name="audio")
 
 
 @app.get("/", tags=["Root"])

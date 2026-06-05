@@ -71,3 +71,10 @@ logs/
 
 # AI Models (large files) - exclude Qwen model files only
 backend/app/models/Qwen/
+
+# 静态资源（音频等）
+backend/static/audio/*.mp3
+backend/static/audio/*.wav
+backend/static/audio/*.ogg
+
+.codegraph/
