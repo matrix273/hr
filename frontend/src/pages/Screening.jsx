@@ -1129,7 +1129,7 @@ const Screening = () => {
           )}
         </Col>
 
-        <Col span={16}>
+        <Col span={16} style={{ display: 'flex', flexDirection: 'column' }}>
           <Card 
             title={
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1215,10 +1215,10 @@ const Screening = () => {
                 </Space>
               </div>
             }
-            style={{ height: '100%' }}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
             styles={{ 
               body: { 
-                maxHeight: 'calc(100vh - 240px)', 
+                flex: 1,
                 overflowY: 'auto',
                 padding: '24px'
               }
@@ -2079,7 +2079,7 @@ const styles = {
     padding: '12px',
     borderRadius: '6px',
     border: '1px solid #e0e0e0',
-    minHeight: '800px',  // 设置最小高度，与PDF高度一致
+    minHeight: '200px',  // 设置最小高度，避免评估内容过短时空旷
     overflow: 'visible',  // 让内容完整显示，不需要滚动
   },
   progressContainer: {
