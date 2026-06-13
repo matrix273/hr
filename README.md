@@ -27,7 +27,7 @@ hr/
 ├── backend/                          # 后端目录
 │   ├── app/
 │   │   ├── main.py                   # FastAPI 应用入口
-│   │   ├── config.py                 # 配置文件
+│   │   ├── config.py                 # 配置（自动查找 .env）
 │   │   ├── models/                   # 数据模型
 │   │   ├── services/                 # 业务逻辑服务
 │   │   │   ├── embedding.py          # 嵌入模型服务
@@ -81,6 +81,20 @@ cp .env.example .env
 - `QWEN_RERANKER_API_KEY` — 阿里通义千问
 - `LLM_API_KEY` — 阿里通义千问（默认）/ DeepSeek / 字节豆包
 
+#### 获取 API Key
+
+| 服务 | 获取地址 |
+|------|---------|
+| 阿里通义千问 | https://dashscope.console.aliyun.com/apiKey |
+
+#### 配置加载顺序
+
+应用启动时，`backend/app/config.py` 会按以下顺序查找 `.env` 文件：
+
+1. `backend/.env`（如果存在，优先使用）
+2. 根目录 `.env`（默认位置）
+3. 使用默认值
+
 ### 5. 初始化数据库
 ```bash
 alembic upgrade head
@@ -110,6 +124,21 @@ cd frontend && npm install && npm run dev
 ./start-all.sh
 ```
 
+### 验证服务
+```bash
+# 检查 Milvus
+curl http://localhost:19530/healthz
+
+# 检查 FastAPI
+curl http://localhost:8000/api/health
+
+# 打开浏览器访问 API 文档
+open http://localhost:8000/docs
+
+# 打开前端应用
+open http://localhost:5173
+```
+
 ## 环境变量配置
 
 关键配置项（详见 `.env.example`）：
@@ -137,8 +166,8 @@ LLM_MODEL=qwen-plus
 # PostgreSQL
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
-POSTGRES_USER=hr_user
-POSTGRES_PASSWORD=hr_password
+POSTGRES_USER=pgadmin
+POSTGRES_PASSWORD=pgadmin
 POSTGRES_DB=hr
 
 # Redis
@@ -148,6 +177,16 @@ REDIS_PORT=6379
 # Milvus
 MILVUS_HOST=localhost
 MILVUS_PORT=19530
+```
+
+### SMTP 邮箱验证码
+```env
+SMTP_HOST=smtp.qq.com
+SMTP_PORT=465
+SMTP_USER=your_email@qq.com
+SMTP_PASSWORD=your_smtp_auth_code
+SMTP_FROM_NAME=AI简历筛选系统
+ADMIN_EMAIL=your_admin_email@example.com
 ```
 
 ## 核心流程
@@ -168,6 +207,94 @@ MILVUS_PORT=19530
 - 简历预览 + AI 评估详情
 - 用户权限管理
 - 邮箱验证码注册
+- 无限制使用：已移除会员订阅、支付集成和配额限制，所有用户可无限制使用简历筛选和岗位创建
+
+## Celery 异步任务
+
+Celery 用于异步处理简历上传后的 embedding 操作，避免阻塞用户请求。
+
+```
+用户上传简历 -> FastAPI 接收请求 -> 保存到数据库 -> 提交 Celery 任务 -> 立即返回响应
+                                                              ↓
+                                                    Celery Worker 异步处理
+                                                              ↓
+                                                    生成 embedding 并存储到 Milvus
+```
+
+### 启动与监控
+
+```bash
+# 启动 Worker（4 个并发）
+./start-celery.sh
+
+# 查看 Worker 状态
+ps aux | grep celery
+
+# 查看 Redis 队列长度
+docker exec -it hr-redis redis-cli LLEN celery
+```
+
+### 调整 Worker 并发数
+
+编辑 `start-celery.sh`，修改 `--concurrency` 参数：
+
+```bash
+celery -A app.celery_app worker --loglevel=info --concurrency=8
+```
+
+## 数据库管理
+
+### 默认管理员账号
+
+- 用户名：`admin`
+- 密码：`callofai2026!`
+- 角色：`admin`
+
+### 备份与恢复
+
+```bash
+# 备份
+docker exec hr-postgres pg_dump -U pgadmin hr > backup.sql
+
+# 恢复
+cat backup.sql | docker exec -i hr-postgres psql -U pgadmin -d hr
+
+# 连接数据库
+docker exec -it hr-postgres psql -U pgadmin -d hr
+```
+
+### 常用 SQL
+
+```sql
+-- 查看所有用户
+SELECT id, username, email, role, is_active, created_at FROM users;
+
+-- 禁用用户
+UPDATE users SET is_active = false WHERE username = 'test_user';
+
+-- 修改用户角色
+UPDATE users SET role = 'manager' WHERE username = 'test_user';
+```
+
+### 重置数据库
+
+```bash
+docker compose down -v
+docker compose up -d postgres
+alembic upgrade head
+```
+
+## 成本估算
+
+使用云端 API 的预估成本（基于常见用量）：
+
+| 服务 | 模型 | 单价 | 1000 次请求成本 |
+|------|------|------|-----------------|
+| Embedding | text-embedding-v3 | ¥0.0007/千tokens | ¥0.1-0.5 |
+| Reranker | qwen3-rerank | ¥1/千次 | ¥1 |
+| LLM | qwen-plus | ¥0.004/千tokens | ¥4-10 |
+
+**月度成本估算**（假设每天处理 100 份简历）：约 ¥30-100
 
 ## 故障排查
 
@@ -176,8 +303,10 @@ MILVUS_PORT=19530
 | 后端启动失败 | `uv sync` 安装依赖，检查 `.env` 配置 |
 | Milvus 连接失败 | `docker compose ps` 确认容器运行 |
 | Embedding/Reranker 报错 | 检查 API Key 是否有效 |
-| 简历上传解析失败 | 检查 Celery + Redis 是否启动 |
+| 简历上传解析失败 | 检查 Celery + Redis 是否启动，查看 `/tmp/celery.log` |
 | 前端无法连接后端 | 检查 CORS 配置，确认后端端口 |
+| 端口占用 | `lsof -i :8000` / `lsof -i :19530` 查看占用进程 |
+| 任务堆积 | `redis-cli LLEN celery` 查看队列，增加 Worker 并发数 |
 
 ## License
 
