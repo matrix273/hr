@@ -23,7 +23,6 @@ from .routes.resumes import router as resumes_router
 from .routes.jobs import router as jobs_router
 from .routes.screening import router as screening_router
 from .routes.users import router as users_router
-from .routes.payment import router as payment_router
 from .routes.companies import router as companies_router
 from .routes.audit import router as audit_router
 from .routes.messages import router as messages_router
@@ -40,13 +39,6 @@ async def lifespan(app: FastAPI):
     # 初始化日志
     setup_fastapi_logger()
     logger.info("Starting Resume Screening System...")
-
-    # 初始化默认套餐
-    try:
-        from .routes.payment import init_default_plans
-        await init_default_plans()
-    except Exception as e:
-        logger.error(f"初始化默认套餐失败: {e}")
 
     # Startup
     system = ResumeScreeningSystem()
@@ -95,7 +87,6 @@ app.include_router(resumes_router)
 app.include_router(jobs_router)
 app.include_router(screening_router)
 app.include_router(users_router)
-app.include_router(payment_router)
 app.include_router(companies_router)
 app.include_router(audit_router)
 app.include_router(messages_router)

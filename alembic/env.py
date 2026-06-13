@@ -31,7 +31,6 @@ config.set_main_option("sqlalchemy.url", DATABASE_URL)
 # 导入模型
 from backend.app.database import Base
 from backend.app.models.user import User, Resume, Company, Job, ScreeningResult, Contact, AuditLog
-from backend.app.models.payment import PaymentOrder, SubscriptionPlan
 
 # add your model's MetaData object here
 # for 'autogenerate' support

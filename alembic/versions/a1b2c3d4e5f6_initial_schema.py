@@ -22,8 +22,6 @@ def upgrade() -> None:
         sa.Column('id', sa.String(50), primary_key=True),
         sa.Column('name', sa.String(100), nullable=False),
         sa.Column('invite_code', sa.String(10), unique=True, nullable=False),
-        sa.Column('subscription_plan', sa.String(50), server_default='free'),
-        sa.Column('subscription_expires', sa.DateTime(timezone=True)),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
     op.create_index('idx_companies_invite_code', 'companies', ['invite_code'])
@@ -39,9 +37,6 @@ def upgrade() -> None:
         sa.Column('role', sa.String(20), nullable=False, server_default='user'),
         sa.Column('is_active', sa.Boolean(), server_default=sa.true()),
         sa.Column('company_id', sa.String(50)),
-        sa.Column('balance', sa.Float(), server_default=sa.text('0.0')),
-        sa.Column('subscription_plan', sa.String(50), server_default='free'),
-        sa.Column('subscription_expires', sa.DateTime(timezone=True)),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True)),
     )
@@ -113,43 +108,7 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
 
-    # 7. payment_orders
-    op.create_table(
-        'payment_orders',
-        sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column('order_id', sa.String(50), unique=True, nullable=False),
-        sa.Column('user_id', sa.String(50), nullable=False),
-        sa.Column('amount', sa.Float(), nullable=False),
-        sa.Column('currency', sa.String(10), server_default='CNY'),
-        sa.Column('payment_method', sa.String(50), nullable=False),
-        sa.Column('product_type', sa.String(50), nullable=False),
-        sa.Column('product_id', sa.String(50)),
-        sa.Column('product_name', sa.String(255), nullable=False),
-        sa.Column('status', sa.String(20), server_default='pending'),
-        sa.Column('payment_data', sa.JSON()),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(timezone=True)),
-        sa.Column('paid_at', sa.DateTime(timezone=True)),
-    )
-    op.create_index('idx_payment_orders_user_id', 'payment_orders', ['user_id'])
-
-    # 8. subscription_plans
-    op.create_table(
-        'subscription_plans',
-        sa.Column('id', sa.String(50), primary_key=True),
-        sa.Column('name', sa.String(100), nullable=False),
-        sa.Column('description', sa.Text()),
-        sa.Column('price', sa.Float(), nullable=False),
-        sa.Column('duration_days', sa.Integer(), nullable=False),
-        sa.Column('max_resumes', sa.Integer(), server_default=sa.text('100')),
-        sa.Column('max_jobs', sa.Integer(), server_default=sa.text('10')),
-        sa.Column('ai_screening', sa.Boolean(), server_default=sa.true()),
-        sa.Column('priority_support', sa.Boolean(), server_default=sa.false()),
-        sa.Column('is_active', sa.Boolean(), server_default=sa.true()),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
-    )
-
-    # 9. audit_logs
+    # 7. audit_logs
     op.create_table(
         'audit_logs',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
@@ -165,22 +124,9 @@ def upgrade() -> None:
     op.create_index('idx_audit_logs_operator_id', 'audit_logs', ['operator_id'])
     op.create_index('idx_audit_logs_created_at', 'audit_logs', ['created_at'])
 
-    # 初始数据：默认订阅套餐
-    op.execute("""
-        INSERT INTO subscription_plans (id, name, description, price, duration_days, max_resumes, max_jobs, ai_screening, priority_support, is_active)
-        VALUES
-            ('free',         '免费版', '基础功能体验', 0,   30, 10,   3,   TRUE, FALSE, TRUE),
-            ('basic',        '基础版', '适合小型团队', 99,  30, 100,  10,  TRUE,  FALSE, TRUE),
-            ('professional', '专业版', '适合中型企业', 299, 30, 500,  50,  TRUE,  TRUE,  TRUE),
-            ('enterprise',   '企业版', '适合大型企业', 999, 30, 1000, 100, TRUE,  TRUE,  TRUE)
-        ON CONFLICT (id) DO NOTHING
-    """)
-
 
 def downgrade() -> None:
     op.drop_table('audit_logs')
-    op.drop_table('subscription_plans')
-    op.drop_table('payment_orders')
     op.drop_table('contacts')
     op.drop_table('screening_results')
     op.drop_table('jobs')

@@ -5,7 +5,6 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import HelpPage from './pages/HelpPage';
-import Payment from './pages/Payment';
 import ForgotPassword from './pages/ForgotPassword';
 
 function App() {
@@ -28,9 +27,6 @@ function App() {
       
       {/* 帮助页面 */}
       <Route path="/help" element={<HelpPage />} />
-
-      {/* 支付页面 */}
-      <Route path="/payment" element={<Payment />} />
 
       {/* 应用页面（需要认证） */}
       <Route

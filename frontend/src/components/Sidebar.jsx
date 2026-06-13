@@ -6,11 +6,9 @@ import {
     FileSearchOutlined,
     SearchOutlined,
     TeamOutlined,
-    CreditCardOutlined,
     BankOutlined,
     AuditOutlined,
-    MailOutlined,
-    SettingOutlined
+    MailOutlined
 } from '@ant-design/icons';
 import {hasAnyPermission} from '../utils/permissions';
 import {Permission} from '../utils/permissions';
@@ -28,9 +26,6 @@ const Sidebar = ({activeItem, onItemClick, collapsed}) => {
 
     // 审计日志仅管理员可见
     const canViewAudit = hasAnyPermission([Permission.AUDIT_READ]);
-
-    // 套餐管理仅系统管理员可见
-    const canManagePlans = hasAnyPermission([Permission.SYSTEM_ADMIN]);
 
     // 用户管理 - 所有登录用户都可以访问（用于管理个人信息）
     const canManageUsers = !!localStorage.getItem('token');
@@ -61,20 +56,10 @@ const Sidebar = ({activeItem, onItemClick, collapsed}) => {
             icon: <TeamOutlined/>,
             label: '用户管理'
         }] : []),
-        {
-            key: 'payment',
-            icon: <CreditCardOutlined/>,
-            label: '会员订阅'
-        },
         ...(canManageCompany ? [{
             key: 'companies',
             icon: <BankOutlined/>,
             label: '公司管理'
-        }] : []),
-        ...(canManagePlans ? [{
-            key: 'plan-manage',
-            icon: <SettingOutlined/>,
-            label: '套餐管理'
         }] : []),
         ...(canViewAudit ? [{
             key: 'contacts',

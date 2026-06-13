@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git log *)",
+      "Bash(git -C /Users/neo/PycharmProjects/hr log --oneline --all)",
+      "Bash(git -C /Users/neo/PycharmProjects/hr log --all --oneline --diff-filter=A -- \"*/payment*\" \"*/subscription*\")",
+      "Bash(git -C /Users/neo/PycharmProjects/hr log --all --oneline -- \"backend/app/routes/payment.py\" \"backend/app/services/subscription.py\" \"backend/app/services/payment.py\" \"backend/app/models/payment.py\" \"frontend/src/pages/Payment.jsx\" \"frontend/src/components/PlanManagement.jsx\")",
+      "Bash(git checkout *)"
+    ]
+  }
+}

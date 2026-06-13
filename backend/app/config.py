@@ -141,26 +141,12 @@ SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))  # 7 days (7 * 24 * 60 = 10080 minutes)
 
-# Payment Configuration
-WECHAT_APPID = os.getenv("WECHAT_APPID", "")
-WECHAT_MCHID = os.getenv("WECHAT_MCHID", "")
-WECHAT_API_KEY = os.getenv("WECHAT_API_KEY", "")
-ALIPAY_APPID = os.getenv("ALIPAY_APPID", "")
-ALIPAY_PRIVATE_KEY = os.getenv("ALIPAY_PRIVATE_KEY", "")
-ALIPAY_PUBLIC_KEY = os.getenv("ALIPAY_PUBLIC_KEY", "")
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
-STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
-BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
-
 # 应用配置类
 class Settings:
     """应用配置类"""
-    
+
     def __init__(self):
-        self.WECHAT_APPID = WECHAT_APPID
-        self.WECHAT_MCHID = WECHAT_MCHID
-        self.WECHAT_API_KEY = WECHAT_API_KEY
-        self.BASE_URL = BASE_URL
+        pass
 
 
 settings = Settings()

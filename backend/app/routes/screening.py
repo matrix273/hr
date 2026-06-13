@@ -33,7 +33,6 @@ from ..core.system import ResumeScreeningSystem
 from ..services.vector_db import MilvusVectorDB
 from ..auth.rbac import check_permission
 from ..tasks import evaluate_resume_with_llm
-from ..services.subscription import check_screening_quota
 
 router = APIRouter(prefix="/api/screening", tags=["Screening"])
 
@@ -73,12 +72,6 @@ async def screen_resumes(
 
             if not user:
                 yield f"data: {json.dumps({'error': '用户不存在'})}\n\n"
-                return
-
-            # 检查筛选配额（基于成功筛选数，非 top_k）
-            allowed, error_msg = await check_screening_quota(user, db)
-            if not allowed:
-                yield f"data: {json.dumps({'type': 'error', 'message': error_msg})}\n\n"
                 return
 
             logger.info(f"开始简历筛选, 用户: {current_user['username']}, top_k: {request.top_k}, model: {request.model}")
@@ -545,12 +538,6 @@ async def screen_resumes_by_job(
 
             if not user:
                 yield f"data: {json.dumps({'error': '用户不存在'})}\n\n"
-                return
-
-            # 检查筛选配额（基于成功筛选数，非 top_k）
-            allowed, error_msg = await check_screening_quota(user, db)
-            if not allowed:
-                yield f"data: {json.dumps({'type': 'error', 'message': error_msg})}\n\n"
                 return
 
             logger.info(f"开始根据岗位筛选简历, 岗位: {job.title}, 用户: {current_user['username']}, top_k: {top_k}, model: {model}")

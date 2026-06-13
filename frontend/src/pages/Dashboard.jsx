@@ -8,8 +8,6 @@ import JobManagement from './JobManagement';
 import Screening from './Screening';
 import UserManagement from './UserManagement';
 import CompanyManagement from './CompanyManagement';
-import Payment from './Payment';
-import PlanManagement from '../components/PlanManagement';
 import AuditLog from './AuditLog';
 import MessageManagement from './MessageManagement';
 import Sidebar from '../components/Sidebar';
@@ -25,10 +23,9 @@ const Dashboard = () => {
     // 从 localStorage 读取保存的 tab，如果没有则默认为 'upload'
     let savedTab = localStorage.getItem('activeTab') || 'upload';
 
-    // 检查用户是否有权限访问保存的 tab（用户管理、会员订阅对所有用户开放）
+    // 检查用户是否有权限访问保存的 tab
     const tabPermissions = {
       'companies': [Permission.COMPANY_READ],
-      'plan-manage': [Permission.SYSTEM_ADMIN],
       'contacts': [Permission.SYSTEM_ADMIN],
       'audit': [Permission.SYSTEM_ADMIN],
     };
@@ -179,14 +176,6 @@ const Dashboard = () => {
 
           <div style={{ display: activeTab === 'companies' ? 'block' : 'none' }}>
             {hasPermission(Permission.COMPANY_READ) && <CompanyManagement />}
-          </div>
-
-          <div style={{ display: activeTab === 'payment' ? 'block' : 'none' }}>
-            <Payment />
-          </div>
-
-          <div style={{ display: activeTab === 'plan-manage' ? 'block' : 'none' }}>
-            {hasPermission(Permission.SYSTEM_ADMIN) && <PlanManagement />}
           </div>
 
           <div style={{ display: activeTab === 'contacts' ? 'block' : 'none' }}>

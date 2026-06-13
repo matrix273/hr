@@ -3,7 +3,7 @@
 import uuid
 import random
 import string
-from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, Float
+from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer
 from sqlalchemy.sql import func
 from ..database import Base
 
@@ -15,9 +15,6 @@ class Company(Base):
     id = Column(String(50), primary_key=True)
     name = Column(String(100), nullable=False, comment="公司名称")
     invite_code = Column(String(10), unique=True, nullable=False, index=True, comment="邀请码")
-    # 订阅相关字段
-    subscription_plan = Column(String(50), default="free", comment="公司订阅套餐")
-    subscription_expires = Column(DateTime(timezone=True), comment="公司订阅过期时间")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     @staticmethod
@@ -55,10 +52,6 @@ class User(Base):
     role = Column(String(20), nullable=False, default="user")
     is_active = Column(Boolean, default=True)
     company_id = Column(String(50), nullable=True, index=True, comment="所属公司ID，用于数据隔离")
-    # 支付相关字段
-    balance = Column(Float, default=0.0, comment="账户余额")
-    subscription_plan = Column(String(50), default="free", comment="订阅套餐")
-    subscription_expires = Column(DateTime(timezone=True), comment="订阅过期时间")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -72,9 +65,6 @@ class User(Base):
             "role": self.role,
             "is_active": self.is_active,
             "company_id": self.company_id,
-            "balance": self.balance,
-            "subscription_plan": self.subscription_plan,
-            "subscription_expires": self.subscription_expires.isoformat() if self.subscription_expires else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None
         }
