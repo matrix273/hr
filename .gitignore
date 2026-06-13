@@ -78,3 +78,4 @@ backend/static/audio/*.wav
 backend/static/audio/*.ogg
 
 .codegraph/
+.claude/
