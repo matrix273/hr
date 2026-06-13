@@ -2,6 +2,8 @@
 
 基于阿里通义千问 Embedding、Milvus 向量数据库、Qwen3-Reranker 和多模型 LLM 的 AI 简历筛选系统，采用前后端分离架构，所有 AI 服务使用云端 API。
 
+## 主要截图
+![jpg preview](docs/images/简历筛选.jpg)
 ## 技术栈
 
 ### 后端
