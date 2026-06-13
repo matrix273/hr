@@ -57,7 +57,7 @@ hr/
 
 ### 1. 克隆项目
 ```bash
-git clone <repo-url>
+git clone https://github.com/matrix273/hr.git
 cd hr
 ```
 
